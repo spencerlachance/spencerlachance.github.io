@@ -6,27 +6,65 @@
 	<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css">
 	<link href="https://fonts.googleapis.com/css?family=Libre+Barcode+128+Text|Merriweather|Nothing+You+Could+Do|Sunflower:300" rel="stylesheet">
 	<link rel="stylesheet" type="text/css" href="main.css">
+	<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+	<script src="scripts.js"></script>
 </head>
 <body>
-<header class="container">
-	<div class="row">
-		<h1 class="col-sm-4 title">Spencer LaChance</h1>
-		<nav class="col-sm-8">
-			<a href="index.html">Home</a><a href="portfolio.html">Portfolio</a>
-		</nav>
-	</div>
-</header>
+<div id="header-wrapper"></div>
 <section class="container">
-	<div class="row">
-		<div class="col-sm-2">
-			<img src="resources/me.png" alt="Me" height="300px" align="right">
-		</div>
-		<div class="col-sm-4">
-			<p>Here's a little website I made to give a deeper look into some of the projects I've made.</p>
-			<p><a href="http://www.github.com/spencerlachance" target="_blank">My Github</a></p>
-			<p><a href="http://www.linkedin.com/in/spencerlachance" target="_blank">My LinkedIn</a></p>
+	<div class="bio">
+		<img src="resources/me.png" alt="Me">
+		<div class="blurb">
+			<p>Hello!</p>
+			<p>
+				My name is Spencer LaChance. I am a senior at Northeastern University
+				pursuing a Bachelor of Arts in Computer Science with a minor in Music
+				Industry. This is a little website I spun up to give a deeper look into
+				some of the projects that I list on my resume. Scroll down to take a 
+				look, and thanks for visiting!
+			</p>
+			<!-- <p>
+				<a href="http://www.github.com/spencerlachance" target="_blank">
+					My Github
+				</a>
+			</p>
+			<p>
+				<a href="http://www.linkedin.com/in/spencerlachance" target="_blank">
+					My LinkedIn
+				</a>
+			</p> -->
 		</div>
 	</div>
+</section>
+<section class="container" id="portfolio">
+	<h1>Portfolio</h1>
+	<figure class="project-thumbnail">
+		<a href="visualizer.html">
+			<h4>Visualizer</h4>
+			<img src="resources/visualizer.png" alt="Visualizer"/>
+		</a>
+		<p>An animated music visualizer that I wrote in Java</p>
+	</figure>
+	<figure class="project-thumbnail">
+		<a href="bg.html">
+			<h4>Background Generator</h4>
+			<img src="resources/bg.png" alt="Background Generator"/>
+		</a>
+		<p>
+			A Python script that I wrote to generate a desktop background from a folder
+			of album artworks (purely for convenience)
+		</p>
+	</figure>
+	<figure class="project-thumbnail">
+		<a href="animator.html">
+			<h4>Simple Animator</h4>
+			<img src="resources/animator.png" alt="Simple Animator"/>
+		</a>
+		<p>
+			Final project for my Object-Oriented Design class: A Java application that
+			generates an animation from a written description in a text file
+		</p>
+	</figure>
 </section>
 </body>
 </html>

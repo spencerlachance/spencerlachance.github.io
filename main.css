@@ -1,3 +1,12 @@
+/***************************************************************************************
+SITE-WIDE STYLES
+***************************************************************************************/
+
+body {
+	background-color: black;
+	color: white;
+}
+
 .title {
 	font-family: 'Libre Barcode 128 Text', cursive;
 	font-size: 54px;
@@ -8,8 +17,13 @@ h2, h3 {
 	text-decoration: underline;
 }
 
-.container {
-	padding: 20px;
+.header-wrapper {
+	background-color: white;
+}
+
+header {
+	background-color: white;
+	color: black;
 }
 
 header.row {
@@ -19,20 +33,59 @@ header.row {
 
 header nav {
 	display: flex;
+	float: right;
 }
 
 header a {
-	padding: 20px;
+	padding: 30px;
 	text-decoration: underline;
 	font-size: 18px;
 	color: black;
 }
 
-p {
+p, h1, h2, h3, h4, h5, h6 {
 	font-family: 'Sunflower', sans-serif;
 }
 
-figure img {
+/***************************************************************************************
+HOME PAGE
+***************************************************************************************/
+
+.bio {
+	padding-top: 40px;
+	display: inline-flex;
+}
+
+.blurb {
+	padding-left: 40px;
+	font-size: 30px;
+}
+
+#portfolio {
+	margin-top: 180px;
+	text-align: center;
+	width: 300px;
+	padding: 0;
+}
+
+#portfolio h1, h4 {
+	text-decoration: underline;
+	padding-top: 20px;
+}
+
+#portfolio a {
+	color: white;
+}
+
+#portfolio p {
+	padding-top: 10px;
+}
+
+.project-thumbnail {
+	margin: 40px 0;
+}
+
+.project-thumbnail img {
 	width: 300px;
 	height: 300px;
 }
