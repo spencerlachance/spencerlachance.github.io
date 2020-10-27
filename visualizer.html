@@ -6,27 +6,36 @@
 	<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css">
 	<link href="https://fonts.googleapis.com/css?family=Libre+Barcode+128+Text|Merriweather|Sunflower:300" rel="stylesheet">
 	<link rel="stylesheet" type="text/css" href="main.css">
+	<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+	<script src="https://kit.fontawesome.com/79f6ff16aa.js" crossorigin="anonymous"></script>
+	<script src="scripts.js"></script>
 </head>
 <body>
-<header class="container">
-	<div class="row">
-		<h1 class="col-sm-4 title">Spencer LaChance</h1>
-		<nav class="col-sm-8">
-			<a href="index.html">Home</a>
-			<a href="portfolio.html">Portfolio</a>
-		</nav>
+<div id="header-wrapper"></div>
+<div class="jumbotron">
+	<h1>Visualizer</h1>
+</div>
+<div class="project container">
+	<p>
+		This Java application allows the user to choose an audio file (must be WAV, AU, 
+		or AIFF/AIFF-C), then it reads the file and produces an animation based on the 
+		song's frequency spectrum. Below are previews of 3 different designs that can be
+		 chosen to display. Click 
+		<a href="resources/visualizer.jar">here</a> 
+		to download the JAR and try it out for youself!
+	</p>
+	<!-- <a href="https://github.com/spencerlachance/visualizer">Github</a> -->
+	<div class="preview-container">
+		<div class="preview-toggle">
+			<i class="fas fa-caret-square-up fa-2x"></i>
+			View Previews <span id="warning">(Warning: Flashing image)</span>
+		</div>
+		<div class="project-gifs">
+			<img src="resources/spectrum.gif" alt="Spectrum Visualizer Design">
+			<img src="resources/circles.gif" alt="Circles Visualizer Design">
+			<img src="resources/waveform.gif" alt="Waveform Visualizer Design">
+		</div>
 	</div>
-</header>
-<div class="visualizer">
-	<img src="resources/spectrum.gif" alt="Spectrum Visualizer Design">
-	<img src="resources/circles.gif" alt="Circles Visualizer Design">
-	<img src="resources/waveform.gif" alt="Waveform Visualizer Design">
-	<p>&nbsp;</p>
-	<p>This program allows the user to choose an audio file (must be WAV, AU, or AIFF/AIFF-C), then reads it and produces an animation to go along with it.
-	Above are previews of 3 different designs that can be chosen to display. Click 
-	<a href="resources/visualizer.jar">here</a> to download the JAR and try
-	it out for youself.</p>
-	<a href="https://github.com/spencerlachance/visualizer" target="_blank">Github</a>
 </div>
 </body>
 </html>
