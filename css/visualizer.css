@@ -1,0 +1,56 @@
+.preview-container {
+	position: relative;
+	max-width: 550px;
+	display: block;
+	margin: auto;
+	height: 700px;
+}
+
+.preview-toggle {
+	border: 1px solid white;
+	padding: 10px;
+	margin: auto;
+	margin-top: 40px;
+	display: flex;
+	align-items: center;
+	border-radius: 6px;
+	font-size: 16px;
+}
+
+.fa-caret-square-up {
+	fill: white;
+	margin-right: 10px;
+	transition: transform 0.5s ease-in;
+}
+
+.fa-caret-square-up:hover {
+	cursor: pointer;
+}
+
+.rotate {
+	transform: rotate(180deg);
+}
+
+#warning {
+	font-size: 12px;
+	padding-left: 10px;
+}
+
+.project-gifs {
+	margin: auto;
+	position: absolute;
+	left: 0;
+	right: 0;
+	overflow: hidden;
+	height: 0;
+	transition: .5s ease;
+}
+
+.project-gifs img {
+	max-width: 196px;
+	max-height: 564px;
+}
+
+.slide {
+	height: 100%;
+}

@@ -1,0 +1,63 @@
+body {
+	background-color: black;
+	color: white;
+}
+
+.title {
+	font-family: 'Libre Barcode 128 Text', cursive;
+	font-size: 54px;
+	display: inline-block;
+}
+
+h2, h3 {
+	font-family: 'Merriweather', serif;
+	text-decoration: underline;
+}
+
+#header-wrapper {
+	background-color: white;
+}
+
+header {
+	background-color: white;
+	color: black;
+}
+
+header.row {
+	display: flex;
+	align-items: center;
+}
+
+header nav {
+	display: flex;
+	float: right;
+}
+
+header a {
+	padding: 30px;
+	text-decoration: underline;
+	font-size: 18px;
+	color: black;
+}
+
+p, h1, h2, h3, h4, h5, h6 {
+	font-family: 'Sunflower', sans-serif;
+}
+
+.fa-github {
+	fill: white;
+}
+
+.jumbotron {
+	text-align: center;
+	background-color: #424242;
+}
+
+.project {
+	padding: 20px;
+}
+
+.project p {
+	font-size: 18px;
+	margin-bottom: 40px;
+}
