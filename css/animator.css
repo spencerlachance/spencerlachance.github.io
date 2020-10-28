@@ -1,0 +1,11 @@
+.outputs {
+    margin-top: 10px;
+    margin-bottom: 30px;
+}
+
+.animator-gifs img {
+    display: block;
+    margin: auto;
+    margin-top: 40px;
+    max-width: 800px;
+}

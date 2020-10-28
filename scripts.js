@@ -3,6 +3,6 @@ $(document).ready( function() {
 
     $(".fa-caret-square-up").on("click", function() {
         $(".fa-caret-square-up").toggleClass("rotate");
-        $(".project-gifs").toggleClass("slide");
+        $(".visualizer-gifs").toggleClass("slide");
     });
 });

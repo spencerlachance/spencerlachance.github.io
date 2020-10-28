@@ -55,9 +55,16 @@ p, h1, h2, h3, h4, h5, h6 {
 
 .project {
 	padding: 20px;
-}
-
-.project p {
 	font-size: 18px;
 	margin-bottom: 40px;
+}
+
+.github {
+	margin: auto;
+	margin-top: 40px;
+	margin-bottom: 20px;
+	text-align: center;
+	color: white;
+	display: block;
+	width: fit-content;
 }

@@ -36,7 +36,7 @@
 	padding-left: 10px;
 }
 
-.project-gifs {
+.visualizer-gifs {
 	margin: auto;
 	position: absolute;
 	left: 0;
@@ -46,11 +46,15 @@
 	transition: .5s ease;
 }
 
-.project-gifs img {
+.visualizer-gifs img {
 	max-width: 196px;
 	max-height: 564px;
 }
 
 .slide {
 	height: 100%;
+}
+
+#visualizer.github {
+	margin-top: 20px;
 }

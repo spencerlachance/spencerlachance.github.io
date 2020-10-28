@@ -5,31 +5,39 @@
 	<meta charset="utf-8"/>
 	<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css">
 	<link href="https://fonts.googleapis.com/css?family=Libre+Barcode+128+Text|Merriweather|Sunflower:300" rel="stylesheet">
-	<link rel="stylesheet" type="text/css" href="global.css">
+	<link rel="stylesheet" type="text/css" href="css/global.css">
+	<link rel="stylesheet" type="text/css" href="css/animator.css">
+	<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+	<script src="scripts.js"></script>
+	<script src="https://kit.fontawesome.com/79f6ff16aa.js" crossorigin="anonymous"></script>
 </head>
 <body>
-<header class="container">
-	<div class="row">
-		<h1 class="col-sm-4 title">Spencer LaChance</h1>
-		<nav class="col-sm-8">
-			<a href="index.html">Home</a>
-			<a href="portfolio.html">Portfolio</a>
-		</nav>
+<div id="header-wrapper"></div>
+<div class="jumbotron">
+	<h1>Simple Animator</h1>
+</div>
+<div class="project container">
+	For my Object-Oriented Design class, a classmate and I implemented an 
+	application which reads input from a text file containg a description of an 
+	animation, and outputs the animation in one of four ways:
+	<ul class="outputs">
+		<li>export a (more readable) text description of the animation</li>
+		<li>export SVG code capable of rendering the animation</li>
+		<li>play the animation in a simple window</li>
+		<li>
+			play the animation in a more interactive window with various controls
+		</li>
+	</ul>
+	<p>
+		Below are a few examples of animations generated and displayed in the 
+		application's interactive view:
+	</p>
+	<div class="animator-gifs">
+		<img src="resources\smalldemo.gif" alt="Small Demo">
+		<img src="resources\toh-8.gif" alt="Tower of Hanoi">
+		<img src="resources\buildings.gif" alt="Buildings">
+		<img src="resources\bigbang.gif" alt="Big Bang">
 	</div>
-</header>
-<div class="animator">
-	<h3>Simple Animator</h3>
-	<p>&nbsp;</p>
-	<img src="resources\smalldemo.gif" onerror="this.src='resources/smalldemo.png'">
-	<img src="resources\toh-8.gif" onerror="this.src='resources/toh-8.png'">
-	<img src="resources\buildings.gif" onerror="this.src='resources/buildings.png'">
-	<img src="resources\bigbang.gif" onerror="this.src='resources/bigbang.png'">
-	<p>&nbsp;</p>
-	<p>For my Object-Oriented Design class, a classmate and I designed an application which reads input from a text
-	file and outputs the animation it describes in one of four ways: by exporting a text description of the animation,
-	exporting svg code capable of displaying the animation, playing the animation in a simple window,
-	or playing the animation in a more interactive window with various controls.</p>
-	<p>Above are a few examples of animations generated and displayed by the application's interactive view.</p>
 </div>
 </body>
 </html>
