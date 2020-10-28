@@ -6,25 +6,23 @@
 	<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css">
 	<link href="https://fonts.googleapis.com/css?family=Libre+Barcode+128+Text|Merriweather|Sunflower:300" rel="stylesheet">
 	<link rel="stylesheet" type="text/css" href="main.css">
+	<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+	<script src="scripts.js"></script>
+	<script src="https://kit.fontawesome.com/79f6ff16aa.js" crossorigin="anonymous"></script>
 </head>
 <body>
-<header class="container">
-	<div class="row">
-		<h1 class="col-sm-4 title">Spencer LaChance</h1>
-		<nav class="col-sm-8">
-			<a href="index.html">Home</a>
-			<a href="portfolio.html">Portfolio</a>
-		</nav>
-	</div>
-</header>
-<div class="bg">
-	<h3>Background Generator</h3>
-	<p>&nbsp;</p>
-	<img src="resources\result.jpg" alt="Result">
-	<p>&nbsp;</p>
-	<p>This is the result of a little script I wrote that reads a folder of album arts and organizes them into
-	a desktop background. It's much easier than making the background manually in Photoshop like I was doing before.</p>
-	<a href="https://github.com/spencerlachance/background-generator" target="_blank">Github</a>
+<div id="header-wrapper"></div>
+<div class="jumbotron">
+	<h1>Background Generator</h1>
+</div>
+<div class="project container">
+	<p>
+		This is the result of a small Python script I wrote that reads a folder of album arts and organizes them into a desktop background. It's much easier than making the background manually in Photoshop like I was doing before. Check it out on GitHub to learn more about how it works and how you can try it yourself!
+	</p>
+	<img id="arts" src="resources\result.jpg" alt="Result">
+	<a class="github" href="https://github.com/spencerlachance/background-generator">
+		<i class="fab fa-3x fa-github" id="bg"></i>
+	</a>
 </div>
 </body>
 </html>

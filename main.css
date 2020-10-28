@@ -48,6 +48,10 @@ p, h1, h2, h3, h4, h5, h6 {
 	font-family: 'Sunflower', sans-serif;
 }
 
+.fa-github {
+	fill: white;
+}
+
 /***************************************************************************************
 HOME PAGE
 ***************************************************************************************/
@@ -106,6 +110,7 @@ PROJECT PAGES
 
 .project p {
 	font-size: 18px;
+	margin-bottom: 40px;
 }
 
 /***************************************************************************************
@@ -169,18 +174,25 @@ VISUALIZER PAGE
 	height: 100%;
 }
 
-.bg {
-	padding: 20px;
+/***************************************************************************************
+BACKGROUND GENERATOR PAGE
+***************************************************************************************/
+
+#arts {
+	width: 100%;
 }
 
-.bg img {
-	width: 1300px;
-	height: auto;
+#bg.fa-github {
+	margin-top: 40px;
+	margin-bottom: 20px;
+	text-align: center;
 }
 
-.welcome {
-	text-decoration: bold;
-	font-family: "Nothing You Could Do", cursive;
+.github {
+	color: white;
+	margin: auto;
+	display: block;
+	width: fit-content;
 }
 
 .animator {
@@ -190,8 +202,4 @@ VISUALIZER PAGE
 .animator img {
 	width: 700px;
 	height: 500px;
-}
-
-#home {
-	background-color: lightgray;
 }
