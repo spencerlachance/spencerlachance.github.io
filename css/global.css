@@ -1,17 +1,13 @@
 body {
 	background-color: black;
 	color: white;
+	font-family: 'Sunflower', sans-serif;
 }
 
 .title {
 	font-family: 'Libre Barcode 128 Text', cursive;
 	font-size: 54px;
 	display: inline-block;
-}
-
-h2, h3 {
-	font-family: 'Merriweather', serif;
-	text-decoration: underline;
 }
 
 #header-wrapper {
@@ -38,10 +34,6 @@ header a {
 	text-decoration: underline;
 	font-size: 18px;
 	color: black;
-}
-
-p, h1, h2, h3, h4, h5, h6 {
-	font-family: 'Sunflower', sans-serif;
 }
 
 .fa-github {
