@@ -4,9 +4,13 @@ body {
 	font-family: 'Sunflower', sans-serif;
 }
 
+a {
+	color: white;
+}
+
 .title {
 	font-family: 'Libre Barcode 128 Text', cursive;
-	font-size: 54px;
+	font-size: 57px;
 	display: inline-block;
 }
 
@@ -36,7 +40,7 @@ header a {
 	color: black;
 }
 
-.fa-github {
+.fab, .fas {
 	fill: white;
 }
 
@@ -56,7 +60,6 @@ header a {
 	margin-top: 40px;
 	margin-bottom: 20px;
 	text-align: center;
-	color: white;
 	display: block;
 	width: fit-content;
 }

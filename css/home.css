@@ -8,6 +8,18 @@
 	font-size: 30px;
 }
 
+.logos {
+	text-align: center;
+}
+
+.logos a {
+	text-decoration: none;
+}
+
+.logos i {
+	padding: 20px;
+}
+
 #portfolio {
 	margin-top: 180px;
 	text-align: center;
@@ -18,10 +30,6 @@
 #portfolio h1, h4 {
 	text-decoration: underline;
 	padding-top: 20px;
-}
-
-#portfolio a {
-	color: white;
 }
 
 #portfolio p {
