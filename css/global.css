@@ -6,6 +6,7 @@ body {
 
 a {
 	color: white;
+	text-decoration: underline;
 }
 
 .title {
@@ -34,9 +35,6 @@ header nav {
 }
 
 header a {
-	padding: 30px;
-	text-decoration: underline;
-	font-size: 18px;
 	color: black;
 }
 
@@ -62,4 +60,18 @@ header a {
 	text-align: center;
 	display: block;
 	width: fit-content;
+}
+
+@media only screen and (max-width: 800px) {
+	p, .project {
+		font-size: 24px;
+	}
+
+	#header-wrapper {
+		text-align: center;
+	}
+
+	.title {
+		font-size: 72px;
+	}
 }

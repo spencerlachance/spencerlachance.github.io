@@ -1,9 +1,9 @@
 .preview-container {
 	position: relative;
-	max-width: 550px;
+	max-width: 700px;
 	display: block;
 	margin: auto;
-	height: 700px;
+	height: 800px;
 }
 
 .preview-toggle {
@@ -23,7 +23,7 @@
 	transition: transform 0.5s ease-in;
 }
 
-.fa-caret-square-up:hover {
+.preview-toggle:hover {
 	cursor: pointer;
 }
 
@@ -47,8 +47,8 @@
 }
 
 .visualizer-gifs img {
-	max-width: 196px;
-	max-height: 564px;
+	max-width: 254px;
+	max-height: 724px;
 }
 
 .slide {
@@ -57,4 +57,14 @@
 
 #visualizer.github {
 	margin-top: 20px;
+}
+
+@media only screen and (max-width: 800px) {
+	.preview-toggle {
+		font-size: 20px;
+	}
+
+	#warning {
+		font-size: 16px;
+	}
 }
