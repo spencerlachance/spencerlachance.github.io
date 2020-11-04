@@ -3,25 +3,45 @@
 	display: inline-flex;
 }
 
+.bio img {
+	display: block;
+	max-width: 300px;
+	max-height: 450px;
+	width: auto;
+	height: auto;
+	float: left;
+	margin: 0 20px 20px 0;
+}
+
 .blurb {
-	padding-left: 40px;
 	font-size: 30px;
+	text-align: justify;
+}
+
+.logos {
+	text-align: center;
+}
+
+.logos a {
+	text-decoration: none;
+}
+
+.logos i {
+	padding: 20px;
 }
 
 #portfolio {
 	margin-top: 180px;
 	text-align: center;
-	width: 300px;
+	max-width: 300px;
+	width: auto;
+	height: auto;
 	padding: 0;
 }
 
 #portfolio h1, h4 {
 	text-decoration: underline;
 	padding-top: 20px;
-}
-
-#portfolio a {
-	color: white;
 }
 
 #portfolio p {
@@ -33,6 +53,45 @@
 }
 
 .project-thumbnail img {
-	width: 300px;
-	height: 300px;
+	max-width: 300px;
+	width: auto;
+	height: auto;
+}
+
+/* Tablet only styles */
+@media only screen and (max-width: 768px) and (min-width: 575.98px) {
+	.blurb, .blurb p {
+		font-size: 38px;
+	}
+
+	.logos {
+		margin-top: 20px;
+	}
+
+	#portfolio {
+		max-width: 500px;
+	}
+
+	.project-thumbnail img {
+		max-width: 500px;
+	}
+}
+
+/* Table and mobile styles */
+@media only screen and (max-width: 768px) {
+	#portfolio h1 {
+		font-size: 54px;
+	}
+	
+	#portfolio h4 {
+		font-size: 36px;
+	}
+}
+
+/* Mobile styles */
+@media only screen and (max-width: 576px) {
+	.bio img {
+		margin: 0 auto 20px auto;
+		float: none;
+	}
 }

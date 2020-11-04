@@ -4,9 +4,14 @@ body {
 	font-family: 'Sunflower', sans-serif;
 }
 
+a {
+	color: white;
+	text-decoration: underline;
+}
+
 .title {
 	font-family: 'Libre Barcode 128 Text', cursive;
-	font-size: 54px;
+	font-size: 57px;
 	display: inline-block;
 }
 
@@ -30,13 +35,10 @@ header nav {
 }
 
 header a {
-	padding: 30px;
-	text-decoration: underline;
-	font-size: 18px;
 	color: black;
 }
 
-.fa-github {
+.fab, .fas {
 	fill: white;
 }
 
@@ -46,7 +48,7 @@ header a {
 }
 
 .project {
-	padding: 20px;
+	padding: 0 20px;
 	font-size: 18px;
 	margin-bottom: 40px;
 }
@@ -56,7 +58,24 @@ header a {
 	margin-top: 40px;
 	margin-bottom: 20px;
 	text-align: center;
-	color: white;
 	display: block;
 	width: fit-content;
+}
+
+/* Tablet only styles */
+@media only screen and (max-width: 768px) and (min-width: 575.98px) {
+	.title {
+		font-size: 72px;
+	}
+}
+
+/* Tablet and mobile styles */
+@media only screen and (max-width: 768px) {
+	p, .project {
+		font-size: 24px;
+	}
+
+	#header-wrapper {
+		text-align: center;
+	}
 }

@@ -1,12 +1,8 @@
-#arts {
+#bg p {
+	margin-bottom: 40px;
+}
+
+#bg img {
 	width: 100%;
 }
 
-.animator {
-	padding: 20px;
-}
-
-.animator img {
-	width: 700px;
-	height: 500px;
-}
