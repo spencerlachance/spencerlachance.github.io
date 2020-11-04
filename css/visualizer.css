@@ -50,8 +50,8 @@
 }
 
 .visualizer-gifs img {
-	width: 254px;
-	height: 724px;
+	max-width: 254px;
+	max-height: 724px;
 }
 
 .slide {
@@ -86,5 +86,10 @@
 	.visualizer-gifs img {
 		margin: auto;
 		display: block;
+	}
+
+	.visualizer-gifs img {
+		width: 254px;
+		height: 724px;
 	}
 }
