@@ -15,6 +15,7 @@
 
 .blurb {
 	font-size: 30px;
+	text-align: justify;
 }
 
 .logos {
@@ -57,8 +58,8 @@
 	height: auto;
 }
 
-/* Tablet styles */
-@media only screen and (max-width: 800px) {
+/* Tablet only styles */
+@media only screen and (max-width: 768px) and (min-width: 575.98px) {
 	.blurb, .blurb p {
 		font-size: 38px;
 	}
@@ -71,6 +72,13 @@
 		max-width: 500px;
 	}
 
+	.project-thumbnail img {
+		max-width: 500px;
+	}
+}
+
+/* Table and mobile styles */
+@media only screen and (max-width: 768px) {
 	#portfolio h1 {
 		font-size: 54px;
 	}
@@ -78,8 +86,12 @@
 	#portfolio h4 {
 		font-size: 36px;
 	}
+}
 
-	.project-thumbnail img {
-		max-width: 500px;
+/* Mobile styles */
+@media only screen and (max-width: 576px) {
+	.bio img {
+		margin: 0 auto 20px auto;
+		float: none;
 	}
 }

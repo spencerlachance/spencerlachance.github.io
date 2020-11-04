@@ -3,6 +3,9 @@
 	max-width: 700px;
 	display: block;
 	margin: auto;
+}
+
+.expanded {
 	height: 800px;
 }
 
@@ -47,8 +50,8 @@
 }
 
 .visualizer-gifs img {
-	max-width: 254px;
-	max-height: 724px;
+	width: 254px;
+	height: 724px;
 }
 
 .slide {
@@ -59,6 +62,7 @@
 	margin-top: 20px;
 }
 
+/* Tablet styles */
 @media only screen and (max-width: 800px) {
 	.preview-toggle {
 		font-size: 20px;
@@ -66,5 +70,21 @@
 
 	#warning {
 		font-size: 16px;
+	}
+}
+
+/* Mobile styles */
+@media only screen and (max-width: 576px) {
+    #warning {
+		font-size: 12px;
+	}
+
+	.expanded {
+		height: 2200px;
+	}
+
+	.visualizer-gifs img {
+		margin: auto;
+		display: block;
 	}
 }

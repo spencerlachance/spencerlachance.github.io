@@ -10,8 +10,16 @@
     max-width: 800px;
 }
 
-@media only screen and (max-width: 800px) {
+/* Tablet styles */
+@media only screen and (max-width: 768px) {
     .animator-gifs img {
         max-width: 700px;
+    }
+}
+
+/* Mobile styles */
+@media only screen and (max-width: 576px) {
+    .animator-gifs img {
+        max-width: 336px;
     }
 }

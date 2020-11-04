@@ -4,5 +4,6 @@ $(document).ready( function() {
     $(".preview-toggle").on("click", function() {
         $(".fa-caret-square-up").toggleClass("rotate");
         $(".visualizer-gifs").toggleClass("slide");
+        $(".preview-container").toggleClass("expanded");
     });
 });

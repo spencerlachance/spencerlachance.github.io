@@ -48,7 +48,7 @@ header a {
 }
 
 .project {
-	padding: 20px;
+	padding: 0 20px;
 	font-size: 18px;
 	margin-bottom: 40px;
 }
@@ -62,16 +62,20 @@ header a {
 	width: fit-content;
 }
 
-@media only screen and (max-width: 800px) {
+/* Tablet only styles */
+@media only screen and (max-width: 768px) and (min-width: 575.98px) {
+	.title {
+		font-size: 72px;
+	}
+}
+
+/* Tablet and mobile styles */
+@media only screen and (max-width: 768px) {
 	p, .project {
 		font-size: 24px;
 	}
 
 	#header-wrapper {
 		text-align: center;
-	}
-
-	.title {
-		font-size: 72px;
 	}
 }
