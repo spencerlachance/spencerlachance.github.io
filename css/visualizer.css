@@ -88,4 +88,9 @@
 		margin: auto;
 		display: block;
 	}
+
+	.visualizer-gifs img {
+		width: 254px;
+		height: 724px;
+	}
 }
