@@ -9,6 +9,10 @@ a {
 	text-decoration: underline;
 }
 
+p a {
+	color: #337ab7;
+}
+
 .title {
 	font-family: 'Libre Barcode 128 Text', cursive;
 	font-size: 57px;
@@ -51,6 +55,11 @@ header a {
 	padding: 0 20px;
 	font-size: 18px;
 	margin-bottom: 40px;
+}
+
+.project img {
+	margin-top: 20px;
+	width: 100%;
 }
 
 .github {

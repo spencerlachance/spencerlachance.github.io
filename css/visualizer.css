@@ -50,7 +50,8 @@
 }
 
 .visualizer-gifs img {
-	width: 254px;
+	margin: 0;
+	width: 228px;
 	height: 724px;
 }
 
