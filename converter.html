@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>Link Converter</title>
+	<meta charset="utf-8"/>
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css">
+	<link href="https://fonts.googleapis.com/css?family=Libre+Barcode+128+Text|Merriweather|Sunflower:300" rel="stylesheet">
+	<link rel="stylesheet" type="text/css" href="css/global.css">
+	<link rel="stylesheet" type="text/css" href="css/converter.css">
+	<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+	<script src="scripts.js"></script>
+	<script src="https://kit.fontawesome.com/79f6ff16aa.js" crossorigin="anonymous"></script>
+</head>
+<body>
+<div id="header-wrapper"></div>
+<div class="jumbotron">
+	<h1>Link Converter</h1>
+	<p>Spotify &harr; Apple Music</p>
+</div>
+<div class="project container" id="converter">
+	<div class="cx-wrap">
+		<div class="cx-bar">
+			<input id="cx-url" class="cx-input" type="url" inputmode="url" autocomplete="off"
+			       spellcheck="false" placeholder="Paste a Spotify or Apple Music link&hellip;"
+			       aria-label="Music link" />
+			<button id="cx-go" class="cx-go">Convert</button>
+		</div>
+		<div class="cx-opts">
+			<label for="cx-country">Country</label>
+			<select id="cx-country" aria-label="Country / storefront">
+				<option value="US" selected>United States</option>
+				<option value="GB">United Kingdom</option>
+				<option value="CA">Canada</option>
+				<option value="AU">Australia</option>
+				<option value="IE">Ireland</option>
+				<option value="DE">Germany</option>
+				<option value="FR">France</option>
+				<option value="ES">Spain</option>
+				<option value="IT">Italy</option>
+				<option value="NL">Netherlands</option>
+				<option value="SE">Sweden</option>
+				<option value="BR">Brazil</option>
+				<option value="MX">Mexico</option>
+				<option value="JP">Japan</option>
+				<option value="IN">India</option>
+			</select>
+		</div>
+		<p class="cx-tip">Paste a song link from either service and get the match on the other.</p>
+		<div id="cx-status" aria-live="polite"></div>
+	</div>
+	<a class="github" href="https://github.com/spencerlachance">
+		<i class="fab fa-3x fa-github"></i>
+	</a>
+</div>
+
+<script>
+(function () {
+	// ↓↓↓ REQUIRED: paste your Cloudflare Worker URL here (no trailing slash) ↓↓↓
+	var PROXY_URL = "https://crosslink-proxy.spencerlachance25.workers.dev";
+
+	var SVC = { spotify: { name: "Spotify" }, apple: { name: "Apple Music" } };
+	var input = document.getElementById("cx-url");
+	var button = document.getElementById("cx-go");
+	var statusEl = document.getElementById("cx-status");
+
+	function esc(s) {
+		return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+			return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+		});
+	}
+	function setLoading(on) { button.disabled = on; button.textContent = on ? "Working\u2026" : "Convert"; }
+	function note(msg, err) { statusEl.innerHTML = '<div class="cx-note' + (err ? " err" : "") + '">' + msg + "</div>"; }
+	function loading() { statusEl.innerHTML = '<div class="cx-note"><span class="cx-spin"></span>Finding it on the other service\u2026</div>'; }
+
+	function run() {
+		var raw = input.value.trim();
+		if (!raw) { input.focus(); return; }
+		if (PROXY_URL.indexOf("your-worker-name") !== -1) {
+			note("This page isn\u2019t configured yet: set <b>PROXY_URL</b> in converter.html to your Cloudflare Worker URL.", true);
+			return;
+		}
+		setLoading(true); loading();
+		var country = document.getElementById("cx-country").value;
+		fetch(PROXY_URL + "?url=" + encodeURIComponent(raw) + "&country=" + encodeURIComponent(country))
+			.then(function (res) { return res.json().then(function (d) { return { ok: res.ok, d: d }; }); })
+			.then(function (r) {
+				if (!r.ok || r.d.error) { note(esc(r.d.error || "Something went wrong."), true); return; }
+				render(r.d);
+			})
+			.catch(function () { note("Couldn\u2019t reach the converter service. Try again in a moment.", true); })
+			.then(function () { setLoading(false); });
+	}
+
+	function sideHtml(obj, role) {
+		var svc = SVC[obj.service] || { name: obj.service };
+		var cls = obj.service === "spotify" ? "spotify" : "apple";
+		var art = obj.artwork ? '<img class="cx-art" src="' + esc(obj.artwork) + '" alt="" />' : '<div class="cx-art"></div>';
+		var label = (role === "source" ? "From " : "") + svc.name;
+		var acts = (role === "target")
+			? '<div class="cx-acts"><button class="cx-btn copy" data-url="' + esc(obj.url) + '">Copy</button>' +
+			  '<a class="cx-btn" href="' + esc(obj.url) + '" target="_blank" rel="noopener">Open</a></div>'
+			: '<div class="cx-acts"><a class="cx-btn" href="' + esc(obj.url) + '" target="_blank" rel="noopener">Open</a></div>';
+		return '<div class="cx-side">' + art +
+			'<div class="cx-meta"><div class="cx-badge ' + cls + '"><span class="dot"></span>' + esc(label) + '</div>' +
+			'<p class="cx-ttl">' + esc(obj.title || "Unknown") + '</p>' +
+			'<p class="cx-artist">' + esc(obj.artist || "") + '</p></div>' + acts + '</div>';
+	}
+
+	function render(d) {
+		var html = '<div class="cx-card">' + sideHtml(d.source, "source");
+		var via = d.matchedBy === "search" ? "no exact match \u2014 search link" : "matched via Odesli";
+		html += '<div class="cx-arrow">\u2193 ' + esc(via) + ' \u2193</div>' + sideHtml(d.target, "target");
+		if (d.matchedBy === "search") {
+			html += '<div class="cx-warn">Odesli didn\u2019t have a ' + esc(SVC[d.targetService].name) +
+				' link (common for very new releases). The button runs a ' + esc(SVC[d.targetService].name) +
+				' search for the title &amp; artist instead.</div>';
+		}
+		if (d.pageUrl) {
+			html += '<div class="cx-foot"><span>One link for any service</span>' +
+				'<a href="' + esc(d.pageUrl) + '" target="_blank" rel="noopener">Universal song.link \u2197</a></div>';
+		}
+		html += '</div>';
+		statusEl.innerHTML = html;
+
+		var copies = statusEl.querySelectorAll(".copy");
+		for (var i = 0; i < copies.length; i++) {
+			copies[i].addEventListener("click", function () {
+				var b = this, u = b.getAttribute("data-url");
+				var done = function () {
+					var prev = b.textContent; b.textContent = "Copied"; b.className += " copied";
+					setTimeout(function () { b.textContent = prev; b.className = b.className.replace(" copied", ""); }, 1500);
+				};
+				if (navigator.clipboard && navigator.clipboard.writeText) {
+					navigator.clipboard.writeText(u).then(done, done);
+				} else {
+					var t = document.createElement("textarea"); t.value = u; document.body.appendChild(t); t.select();
+					try { document.execCommand("copy"); } catch (e) {} document.body.removeChild(t); done();
+				}
+			});
+		}
+	}
+
+	button.addEventListener("click", run);
+	input.addEventListener("keydown", function (e) { if (e.key === "Enter") run(); });
+})();
+</script>
+</body>
+</html>
