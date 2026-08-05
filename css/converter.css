@@ -66,6 +66,8 @@
   flex: none; width: 72px; height: 72px; border-radius: 8px; object-fit: cover;
   background: #1e272c; box-shadow: 0 6px 16px rgba(0,0,0,0.4);
 }
+/* override global.css ".project img { width: 100% }" */
+#converter .cx-art { width: 72px; height: 72px; margin-top: 0; }
 .cx-meta { flex: 1; min-width: 0; }
 .cx-badge {
   font-size: 11px; letter-spacing: .12em; text-transform: uppercase;

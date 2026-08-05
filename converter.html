@@ -26,32 +26,9 @@
 			       aria-label="Music link" />
 			<button id="cx-go" class="cx-go">Convert</button>
 		</div>
-		<div class="cx-opts">
-			<label for="cx-country">Country</label>
-			<select id="cx-country" aria-label="Country / storefront">
-				<option value="US" selected>United States</option>
-				<option value="GB">United Kingdom</option>
-				<option value="CA">Canada</option>
-				<option value="AU">Australia</option>
-				<option value="IE">Ireland</option>
-				<option value="DE">Germany</option>
-				<option value="FR">France</option>
-				<option value="ES">Spain</option>
-				<option value="IT">Italy</option>
-				<option value="NL">Netherlands</option>
-				<option value="SE">Sweden</option>
-				<option value="BR">Brazil</option>
-				<option value="MX">Mexico</option>
-				<option value="JP">Japan</option>
-				<option value="IN">India</option>
-			</select>
-		</div>
 		<p class="cx-tip">Paste a song link from either service and get the match on the other.</p>
 		<div id="cx-status" aria-live="polite"></div>
 	</div>
-	<a class="github" href="https://github.com/spencerlachance">
-		<i class="fab fa-3x fa-github"></i>
-	</a>
 </div>
 
 <script>
@@ -83,45 +60,59 @@
 				return r.json();
 			})
 			.then(function (d) {
-				return { title: d.title, artist: d.author_name, artwork: d.thumbnail_url };
+				return { title: d.title || "", artist: d.author_name || "", artwork: d.thumbnail_url };
 			});
 	}
 
-	function parseAppleId(url) {
+	function itunesJsonp(id) {
+		return new Promise(function (resolve, reject) {
+			var cb = "_itcb_" + Math.random().toString(36).slice(2);
+			var script = document.createElement("script");
+			var timer = setTimeout(function () { cleanup(); reject(new Error("timeout")); }, 8000);
+			function cleanup() {
+				delete window[cb];
+				if (script.parentNode) script.parentNode.removeChild(script);
+				clearTimeout(timer);
+			}
+			window[cb] = function (data) { cleanup(); resolve(data); };
+			script.onerror = function () { cleanup(); reject(new Error("load error")); };
+			script.src = "https://itunes.apple.com/lookup?id=" + id + "&entity=song&callback=" + cb;
+			document.head.appendChild(script);
+		});
+	}
+
+	function parseAppleIds(url) {
 		try {
 			var u = new URL(url);
 			var trackId = u.searchParams.get("i");
-			if (trackId) return trackId;
 			var parts = u.pathname.split("/").filter(Boolean);
-			var last = parts[parts.length - 1];
-			if (/^\d+$/.test(last)) return last;
-		} catch (e) {}
-		return null;
+			var pathId = /^\d+$/.test(parts[parts.length - 1]) ? parts[parts.length - 1] : null;
+			return { trackId: trackId, albumId: pathId };
+		} catch (e) { return {}; }
 	}
 
 	function getAppleMeta(url) {
-		var id = parseAppleId(url);
+		var ids = parseAppleIds(url);
+		var id = ids.trackId || ids.albumId;
 		if (!id) return Promise.reject(new Error("Can’t parse Apple Music URL"));
-		return fetch("https://itunes.apple.com/lookup?id=" + id + "&entity=song")
-			.then(function (r) { return r.json(); })
-			.then(function (d) {
-				if (!d.results || !d.results.length) throw new Error("Not found");
-				var track = null;
-				for (var i = 0; i < d.results.length; i++) {
-					if (d.results[i].wrapperType === "track") { track = d.results[i]; break; }
-				}
-				var result = track || d.results[0];
-				return {
-					title: result.trackName || result.collectionName,
-					artist: result.artistName,
-					artwork: result.artworkUrl100 ? result.artworkUrl100.replace("100x100bb", "300x300bb") : null
-				};
-			});
+		return itunesJsonp(id).then(function (d) {
+			if (!d.results || !d.results.length) throw new Error("Not found");
+			var track = null;
+			for (var i = 0; i < d.results.length; i++) {
+				if (d.results[i].wrapperType === "track") { track = d.results[i]; break; }
+			}
+			var result = track || d.results[0];
+			return {
+				title: result.trackName || result.collectionName,
+				artist: result.artistName,
+				artwork: result.artworkUrl100 ? result.artworkUrl100.replace("100x100bb", "300x300bb") : null
+			};
+		});
 	}
 
-	function searchApple(title, artist, country) {
-		var term = encodeURIComponent(title + " " + artist);
-		return fetch("https://itunes.apple.com/search?term=" + term + "&entity=song&limit=1&country=" + encodeURIComponent(country))
+	function searchApple(title, artist) {
+		var term = encodeURIComponent(artist ? title + " " + artist : title);
+		return fetch("https://itunes.apple.com/search?term=" + term + "&entity=song&limit=1")
 			.then(function (r) { return r.json(); })
 			.then(function (d) {
 				return d.results && d.results[0] && d.results[0].trackViewUrl || null;
@@ -129,7 +120,7 @@
 	}
 
 	function spotifySearchUrl(title, artist) {
-		return "https://open.spotify.com/search/" + encodeURIComponent(title + " " + artist);
+		return "https://open.spotify.com/search/" + encodeURIComponent(artist ? title + " " + artist : title);
 	}
 
 	function run() {
@@ -141,15 +132,14 @@
 			return;
 		}
 		setLoading(true); loading();
-		var country = document.getElementById("cx-country").value;
 
 		var metaP = service === "spotify" ? getSpotifyMeta(raw) : getAppleMeta(raw);
 		metaP.then(function (meta) {
 			if (service === "spotify") {
-				return searchApple(meta.title, meta.artist, country).then(function (appleUrl) {
+				return searchApple(meta.title, meta.artist).then(function (appleUrl) {
 					render({
 						source: { service: "spotify", url: raw, title: meta.title, artist: meta.artist, artwork: meta.artwork },
-						target: { service: "apple", url: appleUrl || ("https://music.apple.com/search#" + encodeURIComponent(meta.title + " " + meta.artist)), title: meta.title, artist: meta.artist, artwork: meta.artwork },
+						target: { service: "apple", url: appleUrl || ("https://music.apple.com/search#" + encodeURIComponent(meta.artist ? meta.title + " " + meta.artist : meta.title)), title: meta.title, artist: meta.artist, artwork: meta.artwork },
 						matchedBy: appleUrl ? "exact" : "search",
 						targetService: "apple"
 					});
