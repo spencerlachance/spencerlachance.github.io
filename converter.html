@@ -56,9 +56,6 @@
 
 <script>
 (function () {
-	// ↓↓↓ REQUIRED: paste your Cloudflare Worker URL here (no trailing slash) ↓↓↓
-	var PROXY_URL = "https://crosslink-proxy.spencerlachance25.workers.dev";
-
 	var SVC = { spotify: { name: "Spotify" }, apple: { name: "Apple Music" } };
 	var input = document.getElementById("cx-url");
 	var button = document.getElementById("cx-go");
@@ -69,27 +66,105 @@
 			return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
 		});
 	}
-	function setLoading(on) { button.disabled = on; button.textContent = on ? "Working\u2026" : "Convert"; }
+	function setLoading(on) { button.disabled = on; button.textContent = on ? "Working…" : "Convert"; }
 	function note(msg, err) { statusEl.innerHTML = '<div class="cx-note' + (err ? " err" : "") + '">' + msg + "</div>"; }
-	function loading() { statusEl.innerHTML = '<div class="cx-note"><span class="cx-spin"></span>Finding it on the other service\u2026</div>'; }
+	function loading() { statusEl.innerHTML = '<div class="cx-note"><span class="cx-spin"></span>Finding it on the other service…</div>'; }
+
+	function detectService(url) {
+		if (/open\.spotify\.com\/track\//.test(url)) return "spotify";
+		if (/music\.apple\.com\//.test(url)) return "apple";
+		return null;
+	}
+
+	function getSpotifyMeta(url) {
+		return fetch("https://open.spotify.com/oembed?url=" + encodeURIComponent(url))
+			.then(function (r) {
+				if (!r.ok) throw new Error("oEmbed failed");
+				return r.json();
+			})
+			.then(function (d) {
+				return { title: d.title, artist: d.author_name, artwork: d.thumbnail_url };
+			});
+	}
+
+	function parseAppleId(url) {
+		try {
+			var u = new URL(url);
+			var trackId = u.searchParams.get("i");
+			if (trackId) return trackId;
+			var parts = u.pathname.split("/").filter(Boolean);
+			var last = parts[parts.length - 1];
+			if (/^\d+$/.test(last)) return last;
+		} catch (e) {}
+		return null;
+	}
+
+	function getAppleMeta(url) {
+		var id = parseAppleId(url);
+		if (!id) return Promise.reject(new Error("Can’t parse Apple Music URL"));
+		return fetch("https://itunes.apple.com/lookup?id=" + id + "&entity=song")
+			.then(function (r) { return r.json(); })
+			.then(function (d) {
+				if (!d.results || !d.results.length) throw new Error("Not found");
+				var track = null;
+				for (var i = 0; i < d.results.length; i++) {
+					if (d.results[i].wrapperType === "track") { track = d.results[i]; break; }
+				}
+				var result = track || d.results[0];
+				return {
+					title: result.trackName || result.collectionName,
+					artist: result.artistName,
+					artwork: result.artworkUrl100 ? result.artworkUrl100.replace("100x100bb", "300x300bb") : null
+				};
+			});
+	}
+
+	function searchApple(title, artist, country) {
+		var term = encodeURIComponent(title + " " + artist);
+		return fetch("https://itunes.apple.com/search?term=" + term + "&entity=song&limit=1&country=" + encodeURIComponent(country))
+			.then(function (r) { return r.json(); })
+			.then(function (d) {
+				return d.results && d.results[0] && d.results[0].trackViewUrl || null;
+			});
+	}
+
+	function spotifySearchUrl(title, artist) {
+		return "https://open.spotify.com/search/" + encodeURIComponent(title + " " + artist);
+	}
 
 	function run() {
 		var raw = input.value.trim();
 		if (!raw) { input.focus(); return; }
-		if (PROXY_URL.indexOf("your-worker-name") !== -1) {
-			note("This page isn\u2019t configured yet: set <b>PROXY_URL</b> in converter.html to your Cloudflare Worker URL.", true);
+		var service = detectService(raw);
+		if (!service) {
+			note("Paste a Spotify track link or Apple Music link.", true);
 			return;
 		}
 		setLoading(true); loading();
 		var country = document.getElementById("cx-country").value;
-		fetch(PROXY_URL + "?url=" + encodeURIComponent(raw) + "&country=" + encodeURIComponent(country))
-			.then(function (res) { return res.json().then(function (d) { return { ok: res.ok, d: d }; }); })
-			.then(function (r) {
-				if (!r.ok || r.d.error) { note(esc(r.d.error || "Something went wrong."), true); return; }
-				render(r.d);
-			})
-			.catch(function () { note("Couldn\u2019t reach the converter service. Try again in a moment.", true); })
-			.then(function () { setLoading(false); });
+
+		var metaP = service === "spotify" ? getSpotifyMeta(raw) : getAppleMeta(raw);
+		metaP.then(function (meta) {
+			if (service === "spotify") {
+				return searchApple(meta.title, meta.artist, country).then(function (appleUrl) {
+					render({
+						source: { service: "spotify", url: raw, title: meta.title, artist: meta.artist, artwork: meta.artwork },
+						target: { service: "apple", url: appleUrl || ("https://music.apple.com/search#" + encodeURIComponent(meta.title + " " + meta.artist)), title: meta.title, artist: meta.artist, artwork: meta.artwork },
+						matchedBy: appleUrl ? "exact" : "search",
+						targetService: "apple"
+					});
+				});
+			} else {
+				render({
+					source: { service: "apple", url: raw, title: meta.title, artist: meta.artist, artwork: meta.artwork },
+					target: { service: "spotify", url: spotifySearchUrl(meta.title, meta.artist), title: meta.title, artist: meta.artist, artwork: meta.artwork },
+					matchedBy: "search",
+					targetService: "spotify"
+				});
+			}
+		}).catch(function () {
+			note("Couldn’t get track info. Check the link and try again.", true);
+		}).then(function () { setLoading(false); });
 	}
 
 	function sideHtml(obj, role) {
@@ -109,16 +184,11 @@
 
 	function render(d) {
 		var html = '<div class="cx-card">' + sideHtml(d.source, "source");
-		var via = d.matchedBy === "search" ? "no exact match \u2014 search link" : "matched via Odesli";
-		html += '<div class="cx-arrow">\u2193 ' + esc(via) + ' \u2193</div>' + sideHtml(d.target, "target");
+		var via = d.matchedBy === "exact" ? "matched via iTunes" : "search link";
+		html += '<div class="cx-arrow">↓ ' + esc(via) + ' ↓</div>' + sideHtml(d.target, "target");
 		if (d.matchedBy === "search") {
-			html += '<div class="cx-warn">Odesli didn\u2019t have a ' + esc(SVC[d.targetService].name) +
-				' link (common for very new releases). The button runs a ' + esc(SVC[d.targetService].name) +
-				' search for the title &amp; artist instead.</div>';
-		}
-		if (d.pageUrl) {
-			html += '<div class="cx-foot"><span>One link for any service</span>' +
-				'<a href="' + esc(d.pageUrl) + '" target="_blank" rel="noopener">Universal song.link \u2197</a></div>';
+			html += '<div class="cx-warn">No exact match found — the button opens a ' +
+				esc(SVC[d.targetService].name) + ' search for the title &amp; artist instead.</div>';
 		}
 		html += '</div>';
 		statusEl.innerHTML = html;
