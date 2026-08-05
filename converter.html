@@ -26,7 +26,7 @@
 			       aria-label="Music link" />
 			<button id="cx-go" class="cx-go">Convert</button>
 		</div>
-		<p class="cx-tip">Paste a song link from either service and get the match on the other.</p>
+		<p class="cx-tip">Paste a song or album link from either service and get the match on the other.</p>
 		<div id="cx-status" aria-live="polite"></div>
 	</div>
 </div>
@@ -48,8 +48,13 @@
 	function loading() { statusEl.innerHTML = '<div class="cx-note"><span class="cx-spin"></span>Finding it on the other service…</div>'; }
 
 	function detectService(url) {
-		if (/open\.spotify\.com\/track\//.test(url)) return "spotify";
-		if (/music\.apple\.com\//.test(url)) return "apple";
+		if (/open\.spotify\.com\/track\//.test(url)) return { service: "spotify", type: "track" };
+		if (/open\.spotify\.com\/album\//.test(url)) return { service: "spotify", type: "album" };
+		if (/music\.apple\.com\//.test(url)) {
+			var trackId = null;
+			try { trackId = new URL(url).searchParams.get("i"); } catch (e) {}
+			return { service: "apple", type: trackId ? "track" : "album" };
+		}
 		return null;
 	}
 
@@ -64,7 +69,7 @@
 			});
 	}
 
-	function itunesJsonp(id) {
+	function itunesJsonp(id, entity) {
 		return new Promise(function (resolve, reject) {
 			var cb = "_itcb_" + Math.random().toString(36).slice(2);
 			var script = document.createElement("script");
@@ -76,7 +81,7 @@
 			}
 			window[cb] = function (data) { cleanup(); resolve(data); };
 			script.onerror = function () { cleanup(); reject(new Error("load error")); };
-			script.src = "https://itunes.apple.com/lookup?id=" + id + "&entity=song&callback=" + cb;
+			script.src = "https://itunes.apple.com/lookup?id=" + id + "&entity=" + (entity || "song") + "&callback=" + cb;
 			document.head.appendChild(script);
 		});
 	}
@@ -93,9 +98,10 @@
 
 	function getAppleMeta(url) {
 		var ids = parseAppleIds(url);
+		var isAlbum = !ids.trackId && !!ids.albumId;
 		var id = ids.trackId || ids.albumId;
-		if (!id) return Promise.reject(new Error("Can’t parse Apple Music URL"));
-		return itunesJsonp(id).then(function (d) {
+		if (!id) return Promise.reject(new Error("Can't parse Apple Music URL"));
+		return itunesJsonp(id, isAlbum ? "album" : "song").then(function (d) {
 			if (!d.results || !d.results.length) throw new Error("Not found");
 			var track = null;
 			for (var i = 0; i < d.results.length; i++) {
@@ -110,12 +116,15 @@
 		});
 	}
 
-	function searchApple(title, artist) {
+	function searchApple(title, artist, type) {
 		var term = encodeURIComponent(artist ? title + " " + artist : title);
-		return fetch("https://itunes.apple.com/search?term=" + term + "&entity=song&limit=1")
+		var entity = type === "album" ? "album" : "song";
+		return fetch("https://itunes.apple.com/search?term=" + term + "&entity=" + entity + "&limit=1")
 			.then(function (r) { return r.json(); })
 			.then(function (d) {
-				return d.results && d.results[0] && d.results[0].trackViewUrl || null;
+				if (!d.results || !d.results[0]) return null;
+				var res = d.results[0];
+				return type === "album" ? (res.collectionViewUrl || null) : (res.trackViewUrl || null);
 			});
 	}
 
@@ -126,20 +135,23 @@
 	function run() {
 		var raw = input.value.trim();
 		if (!raw) { input.focus(); return; }
-		var service = detectService(raw);
-		if (!service) {
-			note("Paste a Spotify track link or Apple Music link.", true);
+		var detected = detectService(raw);
+		if (!detected) {
+			note("Paste a Spotify or Apple Music track or album link.", true);
 			return;
 		}
+		var service = detected.service;
+		var type = detected.type;
 		setLoading(true); loading();
 
 		var metaP = service === "spotify" ? getSpotifyMeta(raw) : getAppleMeta(raw);
 		metaP.then(function (meta) {
 			if (service === "spotify") {
-				return searchApple(meta.title, meta.artist).then(function (appleUrl) {
+				return searchApple(meta.title, meta.artist, type).then(function (appleUrl) {
+					var fallbackUrl = "https://music.apple.com/search#" + encodeURIComponent(meta.artist ? meta.title + " " + meta.artist : meta.title);
 					render({
 						source: { service: "spotify", url: raw, title: meta.title, artist: meta.artist, artwork: meta.artwork },
-						target: { service: "apple", url: appleUrl || ("https://music.apple.com/search#" + encodeURIComponent(meta.artist ? meta.title + " " + meta.artist : meta.title)), title: meta.title, artist: meta.artist, artwork: meta.artwork },
+						target: { service: "apple", url: appleUrl || fallbackUrl, title: meta.title, artist: meta.artist, artwork: meta.artwork },
 						matchedBy: appleUrl ? "exact" : "search",
 						targetService: "apple"
 					});
@@ -153,7 +165,7 @@
 				});
 			}
 		}).catch(function () {
-			note("Couldn’t get track info. Check the link and try again.", true);
+			note("Couldn't get info. Check the link and try again.", true);
 		}).then(function () { setLoading(false); });
 	}
 
