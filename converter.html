@@ -132,6 +132,18 @@
 		return "https://open.spotify.com/search/" + encodeURIComponent(artist ? title + " " + artist : title);
 	}
 
+	// Update this after deploying the Cloudflare Worker
+	var SPOTIFY_WORKER_URL = "https://spotify-search.spencerlachance25.workers.dev";
+
+	function searchSpotify(title, artist, type) {
+		var q = artist ? title + " " + artist : title;
+		var qs = "?q=" + encodeURIComponent(q) + "&type=" + encodeURIComponent(type);
+		return fetch(SPOTIFY_WORKER_URL + qs)
+			.then(function (r) { return r.ok ? r.json() : null; })
+			.then(function (d) { return d && d.url ? d.url : null; })
+			.catch(function () { return null; });
+	}
+
 	function run() {
 		var raw = input.value.trim();
 		if (!raw) { input.focus(); return; }
@@ -157,11 +169,13 @@
 					});
 				});
 			} else {
-				render({
-					source: { service: "apple", url: raw, title: meta.title, artist: meta.artist, artwork: meta.artwork },
-					target: { service: "spotify", url: spotifySearchUrl(meta.title, meta.artist), title: meta.title, artist: meta.artist, artwork: meta.artwork },
-					matchedBy: "search",
-					targetService: "spotify"
+				return searchSpotify(meta.title, meta.artist, type).then(function (spotifyUrl) {
+					render({
+						source: { service: "apple", url: raw, title: meta.title, artist: meta.artist, artwork: meta.artwork },
+						target: { service: "spotify", url: spotifyUrl || spotifySearchUrl(meta.title, meta.artist), title: meta.title, artist: meta.artist, artwork: meta.artwork },
+						matchedBy: spotifyUrl ? "exact" : "search",
+						targetService: "spotify"
+					});
 				});
 			}
 		}).catch(function () {
