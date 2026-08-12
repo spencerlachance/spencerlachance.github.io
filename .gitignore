@@ -1,2 +1,4 @@
 .vscode
 workers/spotify-search/node_modules
+workers/spotify-search/.dev.vars
+.wrangler
