@@ -16,24 +16,25 @@
 <div id="header-wrapper"></div>
 <div class="jumbotron">
 	<h1>Link Converter</h1>
-	<p>Spotify &harr; Apple Music</p>
+	<p>Spotify &harr; Apple Music &harr; YouTube</p>
 </div>
 <div class="project container" id="converter">
 	<div class="cx-wrap">
 		<div class="cx-bar">
 			<input id="cx-url" class="cx-input" type="url" inputmode="url" autocomplete="off"
-			       spellcheck="false" placeholder="Paste a Spotify or Apple Music link&hellip;"
+			       spellcheck="false" placeholder="Paste a Spotify, Apple Music, or YouTube link&hellip;"
 			       aria-label="Music link" />
 			<button id="cx-go" class="cx-go">Convert</button>
 		</div>
-		<p class="cx-tip">Paste a song or album link from either service and get the match on the other.</p>
+		<p class="cx-tip">Paste a song link (or a Spotify/Apple Music album link) and get the matches on the other services.</p>
 		<div id="cx-status" aria-live="polite"></div>
 	</div>
 </div>
 
 <script>
 (function () {
-	var SVC = { spotify: { name: "Spotify" }, apple: { name: "Apple Music" } };
+	var SVC = { spotify: { name: "Spotify" }, apple: { name: "Apple Music" }, youtube: { name: "YouTube" } };
+	var ALL_SERVICES = ["spotify", "apple", "youtube"];
 	var input = document.getElementById("cx-url");
 	var button = document.getElementById("cx-go");
 	var statusEl = document.getElementById("cx-status");
@@ -55,6 +56,9 @@
 			try { trackId = new URL(url).searchParams.get("i"); } catch (e) {}
 			return { service: "apple", type: trackId ? "track" : "album" };
 		}
+		if (/^https?:\/\/(www\.|music\.)?youtube\.com\/watch/.test(url) || /^https?:\/\/youtu\.be\//.test(url)) {
+			return { service: "youtube", type: "track" };
+		}
 		return null;
 	}
 
@@ -67,6 +71,28 @@
 			.then(function (d) {
 				return { title: d.title || "", artist: d.author_name || "", artwork: d.thumbnail_url };
 			});
+	}
+
+	function parseYoutubeTitle(d) {
+		var raw = d.title || "";
+		var author = (d.author_name || "").replace(/\s*-\s*Topic\s*$/i, "").trim();
+		var cleaned = raw
+			.replace(/[\(\[][^\)\]]*\b(official\s*(music\s*)?video|official\s*audio|lyrics?|lyric\s*video|visualizer|audio|mv|hd|4k|remaster(ed)?)\b[^\)\]]*[\)\]]/gi, "")
+			.replace(/\s+/g, " ")
+			.trim();
+		var title = cleaned || raw, artist = author;
+		var m = cleaned.match(/^(.+?)\s[-–—]\s(.+)$/);
+		if (m) { artist = m[1].trim(); title = m[2].trim(); }
+		return { title: title, artist: artist, artwork: d.thumbnail_url };
+	}
+
+	function getYoutubeMeta(url) {
+		return fetch("https://www.youtube.com/oembed?url=" + encodeURIComponent(url) + "&format=json")
+			.then(function (r) {
+				if (!r.ok) throw new Error("oEmbed failed");
+				return r.json();
+			})
+			.then(parseYoutubeTitle);
 	}
 
 	function itunesJsonp(id, entity) {
@@ -144,40 +170,66 @@
 			.catch(function () { return null; });
 	}
 
+	var YOUTUBE_API_KEY = "AIzaSyDfP0myeSpNn6-iSm6UBaq9YO28Ha5oqsw";
+
+	function youtubeSearchUrl(title, artist) {
+		return "https://www.youtube.com/results?search_query=" + encodeURIComponent(artist ? title + " " + artist : title);
+	}
+
+	function searchYoutube(title, artist) {
+		var q = artist ? title + " " + artist : title;
+		var qs = "?part=snippet&maxResults=1&type=video&videoCategoryId=10&q=" + encodeURIComponent(q) + "&key=" + YOUTUBE_API_KEY;
+		return fetch("https://www.googleapis.com/youtube/v3/search" + qs)
+			.then(function (r) { return r.ok ? r.json() : null; })
+			.then(function (d) {
+				var item = d && d.items && d.items[0];
+				return item && item.id ? "https://www.youtube.com/watch?v=" + item.id.videoId : null;
+			})
+			.catch(function () { return null; });
+	}
+
+	function buildTarget(targetService, meta, type) {
+		if (targetService === "apple") {
+			return searchApple(meta.title, meta.artist, type).then(function (appleUrl) {
+				var fallbackUrl = "https://music.apple.com/search#" + encodeURIComponent(meta.artist ? meta.title + " " + meta.artist : meta.title);
+				return { service: "apple", url: appleUrl || fallbackUrl, title: meta.title, artist: meta.artist, artwork: meta.artwork, matchedBy: appleUrl ? "exact" : "search" };
+			});
+		}
+		if (targetService === "spotify") {
+			return searchSpotify(meta.title, meta.artist, type).then(function (spotifyUrl) {
+				return { service: "spotify", url: spotifyUrl || spotifySearchUrl(meta.title, meta.artist), title: meta.title, artist: meta.artist, artwork: meta.artwork, matchedBy: spotifyUrl ? "exact" : "search" };
+			});
+		}
+		return searchYoutube(meta.title, meta.artist).then(function (ytUrl) {
+			return { service: "youtube", url: ytUrl || youtubeSearchUrl(meta.title, meta.artist), title: meta.title, artist: meta.artist, artwork: meta.artwork, matchedBy: ytUrl ? "exact" : "search" };
+		});
+	}
+
 	function run() {
 		var raw = input.value.trim();
 		if (!raw) { input.focus(); return; }
 		var detected = detectService(raw);
 		if (!detected) {
-			note("Paste a Spotify or Apple Music track or album link.", true);
+			note("Paste a Spotify, Apple Music, or YouTube song link.", true);
 			return;
 		}
 		var service = detected.service;
 		var type = detected.type;
 		setLoading(true); loading();
 
-		var metaP = service === "spotify" ? getSpotifyMeta(raw) : getAppleMeta(raw);
+		var metaP = service === "spotify" ? getSpotifyMeta(raw) : service === "apple" ? getAppleMeta(raw) : getYoutubeMeta(raw);
 		metaP.then(function (meta) {
-			if (service === "spotify") {
-				return searchApple(meta.title, meta.artist, type).then(function (appleUrl) {
-					var fallbackUrl = "https://music.apple.com/search#" + encodeURIComponent(meta.artist ? meta.title + " " + meta.artist : meta.title);
-					render({
-						source: { service: "spotify", url: raw, title: meta.title, artist: meta.artist, artwork: meta.artwork },
-						target: { service: "apple", url: appleUrl || fallbackUrl, title: meta.title, artist: meta.artist, artwork: meta.artwork },
-						matchedBy: appleUrl ? "exact" : "search",
-						targetService: "apple"
-					});
-				});
-			} else {
-				return searchSpotify(meta.title, meta.artist, type).then(function (spotifyUrl) {
-					render({
-						source: { service: "apple", url: raw, title: meta.title, artist: meta.artist, artwork: meta.artwork },
-						target: { service: "spotify", url: spotifyUrl || spotifySearchUrl(meta.title, meta.artist), title: meta.title, artist: meta.artist, artwork: meta.artwork },
-						matchedBy: spotifyUrl ? "exact" : "search",
-						targetService: "spotify"
-					});
-				});
-			}
+			var targets = ALL_SERVICES.filter(function (s) {
+				if (s === service) return false;
+				if (s === "youtube" && type === "album") return false; // YouTube matching is songs-only
+				return true;
+			});
+			return Promise.all(targets.map(function (t) { return buildTarget(t, meta, type); })).then(function (results) {
+				render(
+					{ service: service, url: raw, title: meta.title, artist: meta.artist, artwork: meta.artwork },
+					results
+				);
+			});
 		}).catch(function () {
 			note("Couldn't get info. Check the link and try again.", true);
 		}).then(function () { setLoading(false); });
@@ -185,7 +237,7 @@
 
 	function sideHtml(obj, role) {
 		var svc = SVC[obj.service] || { name: obj.service };
-		var cls = obj.service === "spotify" ? "spotify" : "apple";
+		var cls = obj.service === "spotify" ? "spotify" : (obj.service === "apple" ? "apple" : "youtube");
 		var art = obj.artwork ? '<img class="cx-art" src="' + esc(obj.artwork) + '" alt="" />' : '<div class="cx-art"></div>';
 		var label = (role === "source" ? "From " : "") + svc.name;
 		var acts = (role === "target")
@@ -198,13 +250,18 @@
 			'<p class="cx-artist">' + esc(obj.artist || "") + '</p></div>' + acts + '</div>';
 	}
 
-	function render(d) {
-		var html = '<div class="cx-card">' + sideHtml(d.source, "source");
-		var via = d.matchedBy === "exact" ? "matched via iTunes" : "search link";
-		html += '<div class="cx-arrow">↓ ' + esc(via) + ' ↓</div>' + sideHtml(d.target, "target");
-		if (d.matchedBy === "search") {
-			html += '<div class="cx-warn">No exact match found — the button opens a ' +
-				esc(SVC[d.targetService].name) + ' search for the title &amp; artist instead.</div>';
+	var MATCH_SOURCE = { apple: "iTunes", spotify: "Spotify", youtube: "YouTube" };
+
+	function render(source, targets) {
+		var html = '<div class="cx-card">' + sideHtml(source, "source");
+		for (var i = 0; i < targets.length; i++) {
+			var t = targets[i];
+			var via = t.matchedBy === "exact" ? "matched via " + MATCH_SOURCE[t.service] : "search link";
+			html += '<div class="cx-arrow">↓ ' + esc(via) + ' ↓</div>' + sideHtml(t, "target");
+			if (t.matchedBy === "search") {
+				html += '<div class="cx-warn">No exact match found — the button opens a ' +
+					esc(SVC[t.service].name) + ' search for the title &amp; artist instead.</div>';
+			}
 		}
 		html += '</div>';
 		statusEl.innerHTML = html;

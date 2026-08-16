@@ -76,6 +76,7 @@
 .cx-badge .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
 .cx-badge.spotify { color: #1db954; } .cx-badge.spotify .dot { background: #1db954; }
 .cx-badge.apple { color: #fa2d48; } .cx-badge.apple .dot { background: #fa2d48; }
+.cx-badge.youtube { color: #ff0000; } .cx-badge.youtube .dot { background: #ff0000; }
 .cx-ttl { font-family: 'Merriweather', serif; font-size: 18px; line-height: 1.2; margin: 0 0 3px; }
 .cx-artist { color: #cdd8d5; font-size: 13px; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
