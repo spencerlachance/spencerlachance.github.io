@@ -22,11 +22,12 @@
 	<div class="cx-wrap">
 		<div class="cx-bar">
 			<input id="cx-url" class="cx-input" type="url" inputmode="url" autocomplete="off"
-			       spellcheck="false" placeholder="Paste a Spotify, Apple Music, or YouTube link&hellip;"
+			       spellcheck="false" placeholder="Paste a song, album, or Apple Music playlist link&hellip;"
 			       aria-label="Music link" />
 			<button id="cx-go" class="cx-go">Convert</button>
 		</div>
-		<p class="cx-tip">Paste a song link (or a Spotify/Apple Music album link) and get the matches on the other services.</p>
+		<p class="cx-tip">Paste a song link (or a Spotify/Apple Music album link) and get the matches on the other services.
+		Paste an <strong>Apple Music playlist</strong> link to rebuild the whole thing in your Spotify library.</p>
 		<div id="cx-status" aria-live="polite"></div>
 	</div>
 </div>
@@ -51,7 +52,9 @@
 	function detectService(url) {
 		if (/open\.spotify\.com\/track\//.test(url)) return { service: "spotify", type: "track" };
 		if (/open\.spotify\.com\/album\//.test(url)) return { service: "spotify", type: "album" };
+		if (/open\.spotify\.com\/playlist\//.test(url)) return { service: "spotify", type: "playlist" };
 		if (/music\.apple\.com\//.test(url)) {
+			if (/\/playlist\//.test(url)) return { service: "apple", type: "playlist" };
 			var trackId = null;
 			try { trackId = new URL(url).searchParams.get("i"); } catch (e) {}
 			return { service: "apple", type: trackId ? "track" : "album" };
@@ -170,21 +173,17 @@
 			.catch(function () { return null; });
 	}
 
-	var YOUTUBE_API_KEY = "AIzaSyDfP0myeSpNn6-iSm6UBaq9YO28Ha5oqsw";
-
 	function youtubeSearchUrl(title, artist) {
 		return "https://www.youtube.com/results?search_query=" + encodeURIComponent(artist ? title + " " + artist : title);
 	}
 
+	// The API key lives in the Worker — a key shipped to the browser is a key anyone
+	// can lift and burn the (very small) daily YouTube search quota with.
 	function searchYoutube(title, artist) {
 		var q = artist ? title + " " + artist : title;
-		var qs = "?part=snippet&maxResults=1&type=video&videoCategoryId=10&q=" + encodeURIComponent(q) + "&key=" + YOUTUBE_API_KEY;
-		return fetch("https://www.googleapis.com/youtube/v3/search" + qs)
+		return fetch(SPOTIFY_WORKER_URL + "/youtube-search?q=" + encodeURIComponent(q))
 			.then(function (r) { return r.ok ? r.json() : null; })
-			.then(function (d) {
-				var item = d && d.items && d.items[0];
-				return item && item.id ? "https://www.youtube.com/watch?v=" + item.id.videoId : null;
-			})
+			.then(function (d) { return d && d.url ? d.url : null; })
 			.catch(function () { return null; });
 	}
 
@@ -215,6 +214,13 @@
 		}
 		var service = detected.service;
 		var type = detected.type;
+
+		if (type === "playlist") {
+			if (service === "apple") { runPlaylist(raw); return; }
+			note("Playlist conversion only runs Apple Music &rarr; Spotify for now. Paste an Apple Music playlist link.", true);
+			return;
+		}
+
 		setLoading(true); loading();
 
 		var metaP = service === "spotify" ? getSpotifyMeta(raw) : service === "apple" ? getAppleMeta(raw) : getYoutubeMeta(raw);
@@ -265,9 +271,14 @@
 		}
 		html += '</div>';
 		statusEl.innerHTML = html;
+		wireCopyButtons();
+	}
 
+	function wireCopyButtons() {
 		var copies = statusEl.querySelectorAll(".copy");
 		for (var i = 0; i < copies.length; i++) {
+			if (copies[i].dataset.wired) continue;
+			copies[i].dataset.wired = "1";
 			copies[i].addEventListener("click", function () {
 				var b = this, u = b.getAttribute("data-url");
 				var done = function () {
@@ -284,8 +295,491 @@
 		}
 	}
 
+	/* ===================== Apple Music playlist → Spotify ===================== */
+
+	var SCOPES = "playlist-modify-public playlist-modify-private";
+	var AUTH_KEY = "cx_spotify_auth";      // { access_token, expires_at }
+	var VERIFIER_KEY = "cx_pkce_verifier";
+	var STATE_KEY = "cx_pkce_state";
+	var PENDING_KEY = "cx_pending";        // { url, name, isPublic }
+
+	var store = {
+		get: function (k) { try { return sessionStorage.getItem(k); } catch (e) { return null; } },
+		set: function (k, v) { try { sessionStorage.setItem(k, v); } catch (e) {} },
+		del: function (k) { try { sessionStorage.removeItem(k); } catch (e) {} }
+	};
+	function getJson(k) { var v = store.get(k); if (!v) return null; try { return JSON.parse(v); } catch (e) { return null; } }
+	function setJson(k, v) { store.set(k, JSON.stringify(v)); }
+
+	function redirectUri() { return location.origin + location.pathname; }
+
+	var clientIdPromise = null;
+	function getClientId() {
+		if (!clientIdPromise) {
+			clientIdPromise = fetch(SPOTIFY_WORKER_URL + "/client-id")
+				.then(function (r) { if (!r.ok) throw new Error("client-id " + r.status); return r.json(); })
+				.then(function (d) { if (!d.clientId) throw new Error("No client ID"); return d.clientId; })
+				.catch(function (e) { clientIdPromise = null; throw e; });
+		}
+		return clientIdPromise;
+	}
+
+	function randomString(len) {
+		var chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~";
+		var bytes = new Uint8Array(len);
+		crypto.getRandomValues(bytes);
+		var out = "";
+		for (var i = 0; i < bytes.length; i++) out += chars[bytes[i] % chars.length];
+		return out;
+	}
+	function base64url(buffer) {
+		var bytes = new Uint8Array(buffer), s = "";
+		for (var i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
+		return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+	}
+	function codeChallenge(verifier) {
+		return crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier)).then(base64url);
+	}
+
+	function currentToken() {
+		var auth = getJson(AUTH_KEY);
+		if (!auth || !auth.access_token || auth.expires_at <= Date.now() + 10000) return null;
+		// Searching needs no scope, so a token granted without the playlist scopes
+		// works right up until the create call 403s. Check here and re-authorize
+		// instead of failing after matching the whole playlist.
+		var granted = (auth.scope || "").split(/\s+/);
+		var needed = SCOPES.split(" ");
+		for (var i = 0; i < needed.length; i++) {
+			if (granted.indexOf(needed[i]) === -1) return null;
+		}
+		return auth.access_token;
+	}
+
+	// Sends the browser to Spotify. `pending` is replayed when we come back.
+	function beginAuth(pending) {
+		var verifier = randomString(64);
+		var state = randomString(16);
+		store.set(VERIFIER_KEY, verifier);
+		store.set(STATE_KEY, state);
+		setJson(PENDING_KEY, pending);
+		return Promise.all([getClientId(), codeChallenge(verifier)]).then(function (r) {
+			location.href = "https://accounts.spotify.com/authorize?" + new URLSearchParams({
+				client_id: r[0],
+				response_type: "code",
+				redirect_uri: redirectUri(),
+				code_challenge_method: "S256",
+				code_challenge: r[1],
+				state: state,
+				scope: SCOPES
+			});
+		});
+	}
+
+	function exchangeCode(code) {
+		var verifier = store.get(VERIFIER_KEY);
+		store.del(VERIFIER_KEY); store.del(STATE_KEY);
+		if (!verifier) return Promise.reject(new Error("Missing PKCE verifier"));
+		return getClientId().then(function (clientId) {
+			return fetch("https://accounts.spotify.com/api/token", {
+				method: "POST",
+				headers: { "Content-Type": "application/x-www-form-urlencoded" },
+				body: new URLSearchParams({
+					client_id: clientId,
+					grant_type: "authorization_code",
+					code: code,
+					redirect_uri: redirectUri(),
+					code_verifier: verifier
+				})
+			});
+		}).then(function (r) {
+			return r.json().then(function (d) {
+				if (!r.ok) throw new Error(d.error_description || d.error || "Token exchange failed");
+				return d;
+			});
+		}).then(function (d) {
+			console.log("Spotify granted scopes:", JSON.stringify(d.scope || ""));
+			setJson(AUTH_KEY, {
+				access_token: d.access_token,
+				scope: d.scope || "",
+				expires_at: Date.now() + (d.expires_in || 3600) * 1000
+			});
+			return d.access_token;
+		});
+	}
+
+	function statusError(status, message) {
+		var err = new Error(message);
+		err.status = status;
+		return err;
+	}
+
+	function api(token, path, options) {
+		var opts = options || {};
+		return fetch("https://api.spotify.com/v1" + path, {
+			method: opts.method || "GET",
+			headers: {
+				"Authorization": "Bearer " + token,
+				"Content-Type": "application/json"
+			},
+			body: opts.body ? JSON.stringify(opts.body) : undefined
+		}).then(function (r) {
+			if (r.status === 429) {
+				var wait = (parseInt(r.headers.get("Retry-After") || "2", 10) + 1) * 1000;
+				return new Promise(function (res) { setTimeout(res, wait); }).then(function () { return api(token, path, opts); });
+			}
+			if (r.status === 401) { store.del(AUTH_KEY); throw statusError(401, "Spotify session expired — connect again."); }
+			if (r.status === 204) return null;
+			// Not every error comes back as the documented JSON error object — the
+			// dev-mode allowlist 403, for one, answers in plain text. Parsing first
+			// and falling back to the raw body keeps Spotify's own wording visible.
+			return r.text().then(function (text) {
+				var d = null;
+				try { d = text ? JSON.parse(text) : null; } catch (e) {}
+				if (!r.ok) {
+					var message = (d && d.error && d.error.message) || (text || "").trim().slice(0, 200) ||
+						("Spotify error " + r.status);
+					console.warn("Spotify " + (opts.method || "GET") + " " + path + " -> " + r.status, text);
+					throw statusError(r.status, message);
+				}
+				return d;
+			});
+		});
+	}
+
+	function fetchApplePlaylist(url) {
+		return fetch(SPOTIFY_WORKER_URL + "/apple-playlist?url=" + encodeURIComponent(url))
+			.then(function (r) {
+				return r.json().then(function (d) {
+					if (!r.ok) throw new Error(d.error || "Couldn't read that playlist");
+					return d;
+				});
+			});
+	}
+
+	/* ---- matching ---- */
+
+	// Apple titles carry "(feat. …)" and edition suffixes that Spotify's
+	// field-scoped search treats as literal text, so strip them for the strict try.
+	function cleanTitle(title) {
+		return title
+			.replace(/\s*[\(\[]\s*(feat\.?|ft\.?|featuring|with)\b[^\)\]]*[\)\]]/gi, "")
+			.replace(/\s*-\s*(single|ep)\s*$/i, "")
+			.replace(/\s+/g, " ")
+			.trim();
+	}
+	function primaryArtist(artist) {
+		return artist
+			.split(/\s*(?:,|&|\bfeat\.?\b|\bft\.?\b|\bfeaturing\b|\bwith\b|\bx\b)\s*/i)[0]
+			.trim();
+	}
+	function quote(s) { return '"' + s.replace(/"/g, "") + '"'; }
+
+	// Spotify almost never answers "no such song" — it falls back to weak relevance
+	// and returns whatever ranked highest. An artist who isn't on the service at all
+	// (King Gizzard pulled their catalogue in 2025) therefore comes back as covers,
+	// karaoke, and AI knock-offs, so every candidate is checked before it's accepted.
+	function normalizeName(s) {
+		return String(s || "").toLowerCase()
+			.normalize("NFD").replace(/[̀-ͯ]/g, "")
+			.replace(/[’'`]/g, "")
+			.replace(/&/g, " and ")
+			.replace(/[^a-z0-9]+/g, " ")
+			.trim();
+	}
+
+	// Apple and Spotify disagree about the suffixes on the same recording
+	// ("(Remastered)", "- Edit"), so compare the titles without them.
+	function coreTitle(s) {
+		return normalizeName(String(s || "")
+			.replace(/\s*[\(\[][^\)\]]*[\)\]]/g, " ")
+			.replace(/\s+-\s+.*$/, ""));
+	}
+
+	var IMPOSTOR_RE = /\b(karaoke|tribute|originally performed|made popular by|in the style of)\b/i;
+
+	function titleMatches(want, got) {
+		var a = coreTitle(want), b = coreTitle(got);
+		// Prefix-only, so "Gila Monster" doesn't match "Said the Gila Monster".
+		return !!a && !!b && (a === b || a.indexOf(b) === 0 || b.indexOf(a) === 0);
+	}
+
+	// Apple credits one string, Spotify an array; matching either way round covers
+	// "Sam Fender & Olivia Dean" vs ["Sam Fender", "Olivia Dean"].
+	function artistMatches(want, names) {
+		var w = normalizeName(want);
+		if (!w) return true;
+		for (var i = 0; i < names.length; i++) {
+			var n = normalizeName(names[i]);
+			if (n && (" " + w + " ").indexOf(" " + n + " ") !== -1) return true;
+		}
+		var all = normalizeName(names.join(" and "));
+		return !!all && (" " + all + " ").indexOf(" " + w + " ") !== -1;
+	}
+
+	function acceptable(track, item) {
+		if (!titleMatches(track.title, item.name)) return false;
+		if (IMPOSTOR_RE.test(item.name) && !IMPOSTOR_RE.test(track.title)) return false;
+		return artistMatches(track.artist, (item.artists || []).map(function (a) { return a.name; }));
+	}
+
+	function searchOne(token, track) {
+		var title = cleanTitle(track.title) || track.title;
+		var full = track.artist || "";
+		var primary = primaryArtist(track.artist) || full;
+		var attempts = [
+			"track:" + quote(title) + (full ? " artist:" + quote(full) : ""),
+			"track:" + quote(title) + (primary ? " artist:" + quote(primary) : ""),
+			title + (full ? " " + full : "")
+		];
+
+		function attempt(i) {
+			if (i >= attempts.length) return Promise.resolve(null);
+			// Ask for a handful: the real recording is often ranked below a cover.
+			return api(token, "/search?" + new URLSearchParams({ q: attempts[i], type: "track", limit: "10" }))
+				.then(function (d) {
+					var items = (d && d.tracks && d.tracks.items) || [];
+					for (var k = 0; k < items.length; k++) {
+						if (!acceptable(track, items[k])) continue;
+						return {
+							uri: items[k].uri,
+							url: items[k].external_urls && items[k].external_urls.spotify,
+							title: items[k].name,
+							artist: (items[k].artists || []).map(function (a) { return a.name; }).join(", ")
+						};
+					}
+					return attempt(i + 1);
+				});
+		}
+		return attempt(0);
+	}
+
+	// Spotify throttles aggressively, so keep a small number of searches in flight.
+	function matchAll(token, tracks, onResult) {
+		var results = new Array(tracks.length);
+		var next = 0;
+		var CONCURRENCY = 5;
+		var firstError = null;
+
+		function worker() {
+			if (next >= tracks.length) return Promise.resolve();
+			var i = next++;
+			return searchOne(token, tracks[i])
+				.catch(function (e) {
+					// An auth failure hits every track alike, so stop rather than
+					// grinding through the rest of the playlist to fail on each one.
+					if (e.status === 401 || e.status === 403) throw e;
+					// A miss and a failed search look identical downstream, so keep the
+					// first error around — otherwise a broken search reads as "no matches".
+					if (!firstError) firstError = e;
+					console.warn("Search failed for", tracks[i].title, "-", e.message);
+					return null;
+				})
+				.then(function (match) {
+					results[i] = match;
+					onResult(i, match);
+					return worker();
+				});
+		}
+
+		var workers = [];
+		for (var w = 0; w < Math.min(CONCURRENCY, tracks.length); w++) workers.push(worker());
+		return Promise.all(workers).then(function () { return { results: results, error: firstError }; });
+	}
+
+	function addInChunks(token, playlistId, uris) {
+		var chunks = [];
+		for (var i = 0; i < uris.length; i += 100) chunks.push(uris.slice(i, i + 100));
+		return chunks.reduce(function (chain, chunk) {
+			return chain.then(function () {
+				// /tracks is deprecated in favour of /items.
+				return api(token, "/playlists/" + playlistId + "/items", { method: "POST", body: { uris: chunk } });
+			});
+		}, Promise.resolve());
+	}
+
+	/* ---- rendering ---- */
+
+	function trackRowsHtml(tracks) {
+		var html = "";
+		for (var i = 0; i < tracks.length; i++) {
+			html += '<li class="cx-row" data-i="' + i + '">' +
+				'<span class="cx-row-n">' + (i + 1) + '</span>' +
+				'<span class="cx-row-txt"><span class="cx-row-ttl">' + esc(tracks[i].title) + '</span>' +
+				'<span class="cx-row-art">' + esc(tracks[i].artist) + '</span></span>' +
+				'<span class="cx-row-status" aria-hidden="true"></span></li>';
+		}
+		return html;
+	}
+
+	function playlistHeaderHtml(pl) {
+		var art = pl.artwork ? '<img class="cx-art" src="' + esc(pl.artwork) + '" alt="" />' : '<div class="cx-art"></div>';
+		var sub = pl.total + " song" + (pl.total === 1 ? "" : "s") + (pl.curator ? " · " + pl.curator : "");
+		return '<div class="cx-side">' + art +
+			'<div class="cx-meta"><div class="cx-badge apple"><span class="dot"></span>From Apple Music</div>' +
+			'<p class="cx-ttl">' + esc(pl.name) + '</p>' +
+			'<p class="cx-artist">' + esc(sub) + '</p></div></div>';
+	}
+
+	function renderPlaylist(pl, sourceUrl, prefill) {
+		var connected = !!currentToken();
+		var html = '<div class="cx-card">' + playlistHeaderHtml(pl);
+
+		if (pl.truncated) {
+			html += '<div class="cx-warn">Apple only publishes the first ' + pl.tracks.length +
+				' tracks of this playlist on the web, so the remaining ' + (pl.total - pl.tracks.length) +
+				' can\'t be read. The Spotify playlist will have ' + pl.tracks.length + ' songs.</div>';
+		}
+
+		html += '<div class="cx-arrow">↓ build this on Spotify ↓</div>' +
+			'<div class="cx-form">' +
+			'<label class="cx-label" for="cx-pl-name">Playlist name</label>' +
+			'<input id="cx-pl-name" class="cx-text" type="text" value="' + esc((prefill && prefill.name) || pl.name) + '" />' +
+			'<label class="cx-check"><input id="cx-pl-public" type="checkbox"' +
+			((prefill && prefill.isPublic) ? " checked" : "") + ' /> Make it public</label>' +
+			'<button id="cx-create" class="cx-go cx-create">' +
+			(connected ? "Create on Spotify" : "Connect Spotify & create") + '</button>' +
+			'<p class="cx-tip cx-form-tip">' +
+			(connected ? "Creating it in your library." : "You'll sign in with Spotify — the playlist is created in your own account.") +
+			'</p></div>' +
+			'<ol class="cx-list">' + trackRowsHtml(pl.tracks) + '</ol></div>';
+
+		statusEl.innerHTML = html;
+
+		document.getElementById("cx-create").addEventListener("click", function () {
+			var pending = {
+				url: sourceUrl,
+				name: document.getElementById("cx-pl-name").value.trim() || pl.name,
+				isPublic: document.getElementById("cx-pl-public").checked
+			};
+			var token = currentToken();
+			if (!token) {
+				this.disabled = true; this.textContent = "Redirecting…";
+				beginAuth(pending).catch(function () { note("Couldn't reach Spotify to sign in. Try again.", true); });
+				return;
+			}
+			createPlaylist(token, pl, pending);
+		});
+	}
+
+	function markRow(i, state) {
+		var row = statusEl.querySelector('.cx-row[data-i="' + i + '"]');
+		if (!row) return;
+		row.className = "cx-row " + (state === "hit" ? "hit" : "miss");
+		row.querySelector(".cx-row-status").textContent = state === "hit" ? "✓" : "—";
+	}
+
+	function createPlaylist(token, pl, pending) {
+		var form = statusEl.querySelector(".cx-form");
+		var total = pl.tracks.length;
+		var done = 0;
+		form.innerHTML = '<div class="cx-prog"><div class="cx-prog-bar"><span id="cx-prog-fill"></span></div>' +
+			'<p class="cx-prog-txt" id="cx-prog-txt">Matching 0 of ' + total + '…</p></div>';
+		var fill = document.getElementById("cx-prog-fill");
+		var txt = document.getElementById("cx-prog-txt");
+
+		matchAll(token, pl.tracks, function (i, match) {
+			done++;
+			markRow(i, match ? "hit" : "miss");
+			fill.style.width = Math.round((done / total) * 100) + "%";
+			txt.textContent = "Matching " + done + " of " + total + "…";
+		}).then(function (out) {
+			var results = out.results;
+			var found = results.filter(Boolean);
+			if (!found.length) {
+				throw new Error(out.error
+					? "Every Spotify search failed: " + out.error.message
+					: "None of these songs could be matched on Spotify — the artist may not be on the service.");
+			}
+			txt.textContent = "Creating the playlist…";
+			// Spotify's February 2026 Dev Mode migration removed
+			// POST /users/{user_id}/playlists; /me/playlists replaces it, and drops
+			// the /me lookup that was only ever there to build the old path.
+			return api(token, "/me/playlists", {
+				method: "POST",
+				body: {
+					name: pending.name,
+					public: pending.isPublic,
+					description: "Converted from the Apple Music playlist “" + pl.name + "”."
+				}
+			}).then(function (created) {
+				return addInChunks(token, created.id, found.map(function (t) { return t.uri; }))
+					.then(function () { return { created: created, results: results }; });
+			});
+		}).then(function (out) {
+			renderPlaylistDone(out.created, out.results, pl);
+		}).catch(function (e) {
+			form.innerHTML = '<div class="cx-note err">' + esc(e.message || "Something went wrong.") + '</div>';
+		});
+	}
+
+	function renderPlaylistDone(created, results, pl) {
+		var misses = [];
+		for (var i = 0; i < results.length; i++) if (!results[i]) misses.push(pl.tracks[i]);
+		var found = results.length - misses.length;
+		var url = (created.external_urls && created.external_urls.spotify) || "https://open.spotify.com/playlist/" + created.id;
+
+		var html = '<div class="cx-done"><div class="cx-badge spotify"><span class="dot"></span>Created on Spotify</div>' +
+			'<p class="cx-ttl">' + esc(created.name) + '</p>' +
+			'<p class="cx-artist">' + found + ' of ' + results.length + ' songs added</p>' +
+			'<div class="cx-acts cx-acts-row">' +
+			'<button class="cx-btn copy" data-url="' + esc(url) + '">Copy</button>' +
+			'<a class="cx-btn" href="' + esc(url) + '" target="_blank" rel="noopener">Open in Spotify</a></div></div>';
+
+		if (misses.length) {
+			html += '<div class="cx-warn">Couldn\'t find ' + misses.length + ' song' + (misses.length === 1 ? "" : "s") +
+				' on Spotify — they\'re marked with — in the list below.</div>';
+		}
+		statusEl.querySelector(".cx-form").outerHTML = html;
+		wireCopyButtons();
+	}
+
+	function runPlaylist(url, prefill) {
+		setLoading(true);
+		statusEl.innerHTML = '<div class="cx-note"><span class="cx-spin"></span>Reading the Apple Music playlist…</div>';
+		fetchApplePlaylist(url).then(function (pl) {
+			if (!pl.tracks || !pl.tracks.length) throw new Error("That playlist looks empty.");
+			renderPlaylist(pl, url, prefill);
+			if (prefill && prefill.autostart) {
+				var token = currentToken();
+				if (token) createPlaylist(token, pl, prefill);
+			}
+		}).catch(function (e) {
+			note(esc(e.message || "Couldn't read that playlist."), true);
+		}).then(function () { setLoading(false); });
+	}
+
+	// Coming back from Spotify: swap the code for a token and pick up where we left off.
+	function handleAuthRedirect() {
+		var params = new URLSearchParams(location.search);
+		var code = params.get("code");
+		var error = params.get("error");
+		if (!code && !error) return;
+
+		var expectedState = store.get(STATE_KEY);
+		var pending = getJson(PENDING_KEY);
+		store.del(PENDING_KEY);
+		history.replaceState({}, "", redirectUri());
+
+		if (error) { note("Spotify sign-in was cancelled.", true); return; }
+		if (!expectedState || params.get("state") !== expectedState) {
+			note("Sign-in couldn't be verified. Try again.", true);
+			return;
+		}
+
+		statusEl.innerHTML = '<div class="cx-note"><span class="cx-spin"></span>Finishing Spotify sign-in…</div>';
+		exchangeCode(code).then(function () {
+			if (!pending || !pending.url) { note("Signed in to Spotify. Paste a playlist link to convert it."); return; }
+			input.value = pending.url;
+			pending.autostart = true;
+			runPlaylist(pending.url, pending);
+		}).catch(function (e) {
+			note("Spotify sign-in failed: " + esc(e.message), true);
+		});
+	}
+
 	button.addEventListener("click", run);
 	input.addEventListener("keydown", function (e) { if (e.key === "Enter") run(); });
+	handleAuthRedirect();
 })();
 </script>
 </body>
