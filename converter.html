@@ -65,14 +65,28 @@
 		return null;
 	}
 
+	// Spotify's oEmbed has no artist field, and searching the other services by
+	// title alone picks the most popular song with that name ("Die Young" → Kesha),
+	// so ask the Worker for the real artist and keep oEmbed only as a fallback.
 	function getSpotifyMeta(url) {
-		return fetch("https://open.spotify.com/oembed?url=" + encodeURIComponent(url))
+		return fetch(SPOTIFY_WORKER_URL + "/spotify-meta?url=" + encodeURIComponent(url))
 			.then(function (r) {
-				if (!r.ok) throw new Error("oEmbed failed");
+				if (!r.ok) throw new Error("meta lookup failed");
 				return r.json();
 			})
 			.then(function (d) {
-				return { title: d.title || "", artist: d.author_name || "", artwork: d.thumbnail_url };
+				if (!d.title) throw new Error("meta lookup failed");
+				return { title: d.title, artist: d.artist || "", artwork: d.artwork };
+			})
+			.catch(function () {
+				return fetch("https://open.spotify.com/oembed?url=" + encodeURIComponent(url))
+					.then(function (r) {
+						if (!r.ok) throw new Error("oEmbed failed");
+						return r.json();
+					})
+					.then(function (d) {
+						return { title: d.title || "", artist: d.author_name || "", artwork: d.thumbnail_url };
+					});
 			});
 	}
 
@@ -153,7 +167,9 @@
 			.then(function (d) {
 				if (!d.results || !d.results[0]) return null;
 				var res = d.results[0];
-				return type === "album" ? (res.collectionViewUrl || null) : (res.trackViewUrl || null);
+				var url = type === "album" ? res.collectionViewUrl : res.trackViewUrl;
+				if (!url) return null;
+				return { url: url, artwork: res.artworkUrl100 ? res.artworkUrl100.replace("100x100bb", "300x300bb") : null };
 			});
 	}
 
@@ -169,7 +185,7 @@
 		var qs = "?q=" + encodeURIComponent(q) + "&type=" + encodeURIComponent(type);
 		return fetch(SPOTIFY_WORKER_URL + qs)
 			.then(function (r) { return r.ok ? r.json() : null; })
-			.then(function (d) { return d && d.url ? d.url : null; })
+			.then(function (d) { return d && d.url ? { url: d.url, artwork: d.artwork || null } : null; })
 			.catch(function () { return null; });
 	}
 
@@ -183,24 +199,26 @@
 		var q = artist ? title + " " + artist : title;
 		return fetch(SPOTIFY_WORKER_URL + "/youtube-search?q=" + encodeURIComponent(q))
 			.then(function (r) { return r.ok ? r.json() : null; })
-			.then(function (d) { return d && d.url ? d.url : null; })
+			.then(function (d) { return d && d.url ? { url: d.url, artwork: d.artwork || null } : null; })
 			.catch(function () { return null; });
 	}
 
+	// Each target shows the matched item's own artwork. A search-link fallback has
+	// no matched item, so it gets the blank placeholder rather than the source art.
 	function buildTarget(targetService, meta, type) {
 		if (targetService === "apple") {
-			return searchApple(meta.title, meta.artist, type).then(function (appleUrl) {
+			return searchApple(meta.title, meta.artist, type).then(function (hit) {
 				var fallbackUrl = "https://music.apple.com/search#" + encodeURIComponent(meta.artist ? meta.title + " " + meta.artist : meta.title);
-				return { service: "apple", url: appleUrl || fallbackUrl, title: meta.title, artist: meta.artist, artwork: meta.artwork, matchedBy: appleUrl ? "exact" : "search" };
+				return { service: "apple", url: hit ? hit.url : fallbackUrl, title: meta.title, artist: meta.artist, artwork: hit ? hit.artwork : null, matchedBy: hit ? "exact" : "search" };
 			});
 		}
 		if (targetService === "spotify") {
-			return searchSpotify(meta.title, meta.artist, type).then(function (spotifyUrl) {
-				return { service: "spotify", url: spotifyUrl || spotifySearchUrl(meta.title, meta.artist), title: meta.title, artist: meta.artist, artwork: meta.artwork, matchedBy: spotifyUrl ? "exact" : "search" };
+			return searchSpotify(meta.title, meta.artist, type).then(function (hit) {
+				return { service: "spotify", url: hit ? hit.url : spotifySearchUrl(meta.title, meta.artist), title: meta.title, artist: meta.artist, artwork: hit ? hit.artwork : null, matchedBy: hit ? "exact" : "search" };
 			});
 		}
-		return searchYoutube(meta.title, meta.artist).then(function (ytUrl) {
-			return { service: "youtube", url: ytUrl || youtubeSearchUrl(meta.title, meta.artist), title: meta.title, artist: meta.artist, artwork: meta.artwork, matchedBy: ytUrl ? "exact" : "search" };
+		return searchYoutube(meta.title, meta.artist).then(function (hit) {
+			return { service: "youtube", url: hit ? hit.url : youtubeSearchUrl(meta.title, meta.artist), title: meta.title, artist: meta.artist, artwork: hit ? hit.artwork : null, matchedBy: hit ? "exact" : "search" };
 		});
 	}
 

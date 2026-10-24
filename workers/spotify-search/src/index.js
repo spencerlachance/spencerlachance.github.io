@@ -60,8 +60,39 @@ async function handleSearch(request, env, url) {
 		? (data.albums && data.albums.items && data.albums.items[0])
 		: (data.tracks && data.tracks.items && data.tracks.items[0]);
 	const spotifyUrl = (item && item.external_urls && item.external_urls.spotify) || null;
+	const images = (item && (type === "album" ? item.images : item.album && item.album.images)) || [];
 
-	return json({ url: spotifyUrl });
+	return json({ url: spotifyUrl, artwork: (images[1] || images[0] || {}).url || null });
+}
+
+/* ---------- Spotify track/album metadata ---------- */
+
+// Spotify's oEmbed only returns the title — no artist — so the browser can't
+// search the other services by "title artist" without this lookup.
+async function handleSpotifyMeta(env, url) {
+	const target = url.searchParams.get("url") || "";
+	const m = /open\.spotify\.com\/(?:intl-[a-z-]+\/)?(track|album)\/([A-Za-z0-9]+)/.exec(target);
+	if (!m) return json({ error: "Not a Spotify track or album URL" }, 400);
+
+	let token;
+	try {
+		token = await getToken(env);
+	} catch (e) {
+		return json({ error: "Spotify auth failed" }, 502);
+	}
+
+	const res = await fetch("https://api.spotify.com/v1/" + m[1] + "s/" + m[2], {
+		headers: { "Authorization": "Bearer " + token },
+	});
+	if (!res.ok) return json({ error: "Spotify lookup failed: " + res.status }, res.status === 404 ? 404 : 502);
+
+	const item = await res.json();
+	const images = (m[1] === "album" ? item.images : item.album && item.album.images) || [];
+	return json({
+		title: item.name || "",
+		artist: (item.artists || []).map((a) => a.name).join(", "),
+		artwork: (images[1] || images[0] || {}).url || null,
+	});
 }
 
 /* ---------- YouTube ---------- */
@@ -74,7 +105,8 @@ async function handleYoutubeSearch(env, url) {
 	// search.list costs 100 quota units against a 10,000/day default — that's only
 	// 100 searches a day, so cache every lookup aggressively.
 	const cache = caches.default;
-	const cacheKey = new Request("https://internal/youtube-search?q=" + encodeURIComponent(q));
+	// v2: entries cached before artwork was added to the response have none.
+	const cacheKey = new Request("https://internal/youtube-search?v=2&q=" + encodeURIComponent(q));
 	const cached = await cache.match(cacheKey);
 	if (cached) {
 		return new Response(cached.body, {
@@ -95,7 +127,12 @@ async function handleYoutubeSearch(env, url) {
 	const data = await res.json();
 	const item = data.items && data.items[0];
 	const videoId = item && item.id && item.id.videoId;
-	const body = JSON.stringify({ url: videoId ? "https://www.youtube.com/watch?v=" + videoId : null });
+	const thumbs = (item && item.snippet && item.snippet.thumbnails) || {};
+	const thumb = thumbs.high || thumbs.medium || thumbs.default;
+	const body = JSON.stringify({
+		url: videoId ? "https://www.youtube.com/watch?v=" + videoId : null,
+		artwork: videoId && thumb ? thumb.url : null,
+	});
 
 	await cache.put(cacheKey, new Response(body, {
 		headers: { "Content-Type": "application/json", "Cache-Control": "public, max-age=86400" },
@@ -214,6 +251,7 @@ export default {
 
 		if (url.pathname === "/apple-playlist") return handleApplePlaylist(url);
 		if (url.pathname === "/youtube-search") return handleYoutubeSearch(env, url);
+		if (url.pathname === "/spotify-meta") return handleSpotifyMeta(env, url);
 
 		// The browser needs the client ID to run the PKCE authorization flow.
 		// Client IDs are public by design; the secret stays in the Worker.
